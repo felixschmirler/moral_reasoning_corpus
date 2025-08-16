@@ -50,3 +50,6 @@ rsconnect/
 
 #RDS files due to github limit
 *.RDS
+
+#txt files to protect api key
+*.txt
