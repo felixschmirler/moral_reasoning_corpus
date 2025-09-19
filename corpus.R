@@ -10,6 +10,7 @@ library(lsa) #for cosine similarity function
 #library(dictvectoR) devtools::install_github("thieled/dictvectoR") #explore package for DDR from https://github.com/thieled/dictvectoR
 library(httr)
 library(jsonlite)
+library(corrplot) #correlation tables viz
 
 #python setup
 library(reticulate) #to work with python libraries
@@ -30,7 +31,7 @@ multi_lang <- st("paraphrase-multilingual-mpnet-base-v2") # multilingual model
 #util_st <- import("sentence_transformers.util")
 
 #1. Data ----
-#1.1. Open Discourse Corpus - Richter et al - Richter et al. - 2023 - Open Discourse Corpus ####
+##1.1. Open Discourse Corpus - Richter et al - Richter et al. - 2023 - Open Discourse Corpus ####
 
 #contributions_extended <- readRDS("open_discourse_corpus/RDS/contributions_extended.RDS") #initially not relevant
 #contributions_simplified <- readRDS("open_discourse_corpus/RDS/contributions_simplified.RDS") #initially not relevant
@@ -155,7 +156,7 @@ speeches_filtered %<>%
 
 speeches_filtered %<>% filter(full_name != "Fraktionslos", full_name != "not found")
 
-#split speeches into sentence level - review ids and check for better ways to split sentences ----
+#To do review ids----
 speeches_sentences <- speeches_filtered %>%
   mutate(sentences = map2(id, speech_content, function(x, y) {
     doc <- ger_md(y)
@@ -174,12 +175,6 @@ speeches_sentences %<>%
     sentence_length = str_length(sentence)
   )
 
-txt <- c(
-  "Dr. Müller kam um 10.30 Uhr an. Z. B. gestern. Okay?",
-  "Prof. Smith arrived at 10.30 a.m. “Great—right?” Yes!"
-)
-split_sentences_ud(txt)
-
 #filter out very long speeches and short comments
 speeches_sentences %>%
   ggplot(aes(sentence_length)) +
@@ -189,8 +184,17 @@ speeches_sentences %>%
 quantile(speeches_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
 
 #filter out top 25% and bottom 25%
-speeches_sentences %<>% filter(sentence_length > 48, sentence_length < 145)
+#speeches_sentences %<>% filter(sentence_length > 48, sentence_length < 145)
 
+#remove interuptions and add context (+/- 1 sentence)
+speeches_sentences %<>% 
+  group_by(id) %>%
+  mutate(
+    sentence = str_remove_all(sentence, "\\(\\{\\d+\\}\\)|\\n"),
+    context = paste0(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
 
 #write to file 
 saveRDS(speeches_sentences, "speeches_sentences.rds")
@@ -201,7 +205,7 @@ sentence_embeddings_multilang <- multi_lang$encode(speeches_sentences$sentence)
 saveRDS(sentence_embeddings_multilang, "sentence_embeddings_multilang.rds")
 sentence_embeddings_multilang <- readRDS("sentence_embeddings_multilang.rds")
 
-#1.2. MFT Reddit Corpus - Trager et al., 2022 ####
+##1.2. MFT Reddit Corpus - Trager et al., 2022 ####
 mft_reddit <- read_csv("mft_reddit_corpus/final_mfrc_data.csv")
 
 #TO DO: filter out duplicates ----
@@ -215,7 +219,7 @@ mft_reddit_test %<>%
     comment_id = row_number(),
   )
 
-#TO DO: split comments into sentence level - review ids and check for better ways to split sentences ----
+#TO DO: review ids ----
 comments_sentences <- mft_reddit_test %>%
   mutate(sentences = map2(comment_id, text, function(x, y) {
     doc <- en_md(y)
@@ -228,6 +232,15 @@ comments_sentences <- mft_reddit_test %>%
     )
   })) %>%
   unnest(sentences)
+
+#add context (+/- 1 sentence)
+comments_sentences %<>% 
+  group_by(comment_id) %>%
+  mutate(
+    context = paste0(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
 
 #write to file 
 saveRDS(comments_sentences, "comments_sentences.rds")
@@ -254,7 +267,7 @@ cosine_similarity <- function(x, y) {
 #load LWIC dictionaries for deontology and utilitarianism (Wheeler & Laham, 2016) 
 dict <- read_csv("dictionary/moral-justification-dictionary.csv")
 
-#2.1. Full dictionaries ---- 
+##2.1. Full dictionaries ---- 
 deont <- dict %>% filter(Deontology == "X") %>% pull(DicTerm) %>% str_remove("\\*")
 conseq <- dict %>% filter(Consequentialism == "X") %>% pull(DicTerm) %>% str_remove("\\*")
 
@@ -271,7 +284,7 @@ cosine(deont_ddr_vector, conseq_ddr_vector) #fairly high but might be due to nat
 
 #add cosine similarity to data ----tbd
 
-#2.2. Seed dictionaries ----
+##2.2. Seed dictionaries ----
 #future plan to run cluster analysis or pca but for now based on expert opinion 
 deont_seed_en <- c("duty", "rights", "norm", "principle")
 conseq_seed_en <- c("result", "consequence", "advantage", "disadvantage")
@@ -289,7 +302,7 @@ cosine(deont_seed_ddr_vector, conseq_seed_ddr_vector) #less similar for seed dic
 
 #add cosine similarity to data ----tbd
 
-#2.3. expanding the deontology seed dictionary to sentences ----
+##2.3. expanding the deontology seed dictionary to sentences ----
 response_deont <- POST(
   url = "https://api.openai.com/v1/chat/completions",
   add_headers(Authorization = paste("Bearer", api_key)),
@@ -454,7 +467,9 @@ conseq_sentence_ddr_vector <- apply(conseq_sentences_en, 2, mean)
 cosine_similarity(deont_sentence_ddr_vector, conseq_sentence_ddr_vector)
 
 
-#need to find a better solution for adding the scores ----
+##2.3.1 cosine similarity with ddr for open discourse dataset ----
+
+#TO DO: need to find a better solution for adding the scores ----
 deont_scores <- cosine_similarity(sentence_embeddings_multilang, deont_ddr_vector)
 conseq_scores <- cosine_similarity(sentence_embeddings_multilang, conseq_ddr_vector)
 
@@ -466,9 +481,67 @@ conseq_sentence_scores <- cosine_similarity(sentence_embeddings_multilang, conse
 
 speeches_sentences %<>% add_column(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, deont_sentence_scores, conseq_sentence_scores) 
 
+saveRDS(speeches_sentences, "speeches_sentences_ddr.rds")
+speeches_sentences <- readRDS("speeches_sentences_ddr.rds")
 
+#exploring a bit
+speeches_sentences %>% 
+  select(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, deont_sentence_scores, conseq_sentence_scores) %>%
+  pivot_longer(everything()) %>% 
+  ggplot(aes(value, fill = name)) +
+  geom_histogram() +
+  facet_wrap(~name)
 
-#3. quick and dirty filtering for first prototype ----
+speeches_sentences %>% 
+  select(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, deont_sentence_scores, conseq_sentence_scores) %>%
+  cor(use = "pairwise.complete.obs", method = "pearson") %>%
+  corrplot.mixed()
+
+###2.3.2 cosine similarity with ddr for reddit dataset ----
+deont_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, deont_ddr_vector)
+conseq_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, conseq_ddr_vector)
+
+deont_seed_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, deont_seed_ddr_vector)
+conseq_seed_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, conseq_seed_ddr_vector)
+
+deont_sentence_reddit_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, deont_sentence_ddr_vector)
+conseq_sentence_reddit_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, conseq_sentence_ddr_vector)
+
+comments_sentences %<>% add_column(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, deont_sentence_reddit_scores, conseq_sentence_reddit_scores) 
+
+#write to file 
+saveRDS(comments_sentences, "comments_sentences_ddr.rds")
+comments_sentences <- readRDS("comments_sentences_ddr.rds")
+
+#exploring a bit
+comments_sentences %>% 
+  select(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, deont_sentence_reddit_scores, conseq_sentence_reddit_scores) %>% 
+  pivot_longer(everything()) %>% 
+  ggplot(aes(value, fill = name)) +
+  geom_histogram() +
+  facet_wrap(~name)
+
+comments_sentences %>% 
+  select(deont_scores, conseq_scores, deont_seed_scores, conseq_seed_scores, 
+    deont_sentence_reddit_scores, conseq_sentence_reddit_scores) %>%
+  cor(use = "pairwise.complete.obs", method = "pearson") %>%
+  corrplot.mixed()
+
+#3. combine data ----
+final_corpus <- rbind(
+  speeches_sentences %>% 
+  mutate(
+    dataset = "open discourse"
+  ) %>% select(doc_id = speech_id, sentence_id, dataset, sentence, context, deont_sentence_scores, conseq_sentence_scores),
+  comments_sentences %>% 
+    mutate(
+      dataset = "mft reddit"
+    ) %>% select(doc_id = comment_id, sentence_id, dataset, sentence, context, deont_sentence_scores = deont_sentence_reddit_scores, conseq_sentence_scores = conseq_sentence_reddit_scores) 
+)
+
+#4. quick and dirty filtering for first prototype ----
+
+#4.1. open discourse
 top_100_deont <- speeches_sentences %>% 
   mutate(label = "deontological") %>% 
   slice_max(deont_sentence_scores, n = 100, with_ties = FALSE)
@@ -485,13 +558,7 @@ test_data_short <- test_data %>%
   ) %>% select(doc_id = speech_id, sentence_id, dataset, label, sentence) 
 
 
-#cosine similarity for reddit dataset
-deont_sentence_reddit_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, deont_sentence_ddr_vector)
-conseq_sentence_reddit_scores <- cosine_similarity(sentence_embeddings_reddit_multilang, conseq_sentence_ddr_vector)
-
-comments_sentences %<>% add_column(deont_sentence_reddit_scores, conseq_sentence_reddit_scores) 
-
-#quick and dirty filtering for first prototype
+##4.2. reddit
 top_100_deont_reddit <- comments_sentences %>% 
   mutate(label = "deontological") %>% 
   slice_max(deont_sentence_reddit_scores, n = 100, with_ties = FALSE)
@@ -508,13 +575,17 @@ test_data2_short <- test_data2 %>%
     dataset = "mft reddit"
   ) %>% select(doc_id = comment_id, sentence_id, dataset, label, sentence) 
 
+#combine data 
 test_data_combined <- rbind(test_data_short, test_data2_short)
-
-#trying quick fix for context variable (e.g. +/- one sentence) 
-speech_context <- speeches_sentences %>% select(doc_id = speech_id, sentence_id, context = speech_content)
-comment_context <- comments_sentences %>% select(doc_id = comment_id, sentence_id, context = text)
-contexts <- rbind(speech_context, comment_context)
-test_data_combined %<>% left_join(contexts) 
 
 write_excel_csv(test_data_combined, "test_data_short.csv")
 test_data_combined <- read_csv("test_data_short.csv")
+
+test_data_context <- left_join(test_data_combined %>% 
+            select(-context), final_corpus, by = c("doc_id", "sentence_id", "dataset")) %>% 
+  select(-sentence.y) 
+
+write_excel_csv(test_data_context, "test_data_context.csv")
+test_data_context <- read_csv("test_data_context.csv")
+
+
