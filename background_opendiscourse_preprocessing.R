@@ -62,8 +62,8 @@ open_discourse %<>%
 
 #split into sentences - takes many hours, run as a background jobs in badges (e.g. 20 min for 10k on a normal laptop)  
 
-#badge
-open_discourse <- open_discourse[1:30000,] #change manually depending on what badge you want to run
+#test badge
+open_discourse <- open_discourse[90001:135357,] #change manually depending on what badge you want to run
 
 docs_gen <- ger_md$pipe(open_discourse$text)
 
@@ -100,11 +100,11 @@ open_discourse_sentences %<>%
 open_discourse_sentences %<>% 
   left_join(open_discourse) 
 
-#remove objects
+#remove objects from environment
 rm(docs)
 rm(docs_gen)
 rm(open_discourse)
 
 #write to file 
-saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences_1_30k.rds")
+saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences_90k_135k.rds")
 
