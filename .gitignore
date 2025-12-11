@@ -48,8 +48,16 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-#RDS files due to github limit
+#RDS files due to github limit and to avoid accidentally publishing output that is not in the public domain
 *.RDS
 
-#txt files to protect api key
+#txt files to protect api key and data from corpora without the license to distribute
 *.txt
+
+#csv files to avoid accidentally publishing output that is not in the public domain
+*.csv
+
+#multiple file formats associated with the us congress speeches
+*.json
+*.xml
+*.htm

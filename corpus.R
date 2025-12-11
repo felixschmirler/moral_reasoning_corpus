@@ -11,6 +11,8 @@ library(lsa) #for cosine similarity function
 library(httr)
 library(jsonlite)
 library(corrplot) #correlation tables viz
+#library(hansard) #UK parliament api / doesn't pull text
+#library(twfy) another parliament api/ pulls text but not enough
 
 #python setup
 library(reticulate) #to work with python libraries
@@ -20,8 +22,8 @@ py_config()
 
 #import spaCy 
 spacy <- import("spacy")
-ger_md <- spacy$load("de_core_news_md") #mostly to split speeches into sentences
-en_md <- spacy$load("en_core_web_md") #mostly to split speeches into sentences
+ger_md <- spacy$load("de_core_news_md") #mostly to split german speeches into sentences
+en_md <- spacy$load("en_core_web_md") #mostly to split english speeches into sentences
 #senter <- spacy$load("xx_sent_ud_sm")  #tested senter as an alternative for sentence splitting but didn't work at all on german parliamentary speeches
 
 #import sentence BERT models
@@ -36,14 +38,43 @@ multi_lang <- st("paraphrase-multilingual-mpnet-base-v2") # multilingual model
 #contributions_extended <- readRDS("open_discourse_corpus/RDS/contributions_extended.RDS") #initially not relevant
 #contributions_simplified <- readRDS("open_discourse_corpus/RDS/contributions_simplified.RDS") #initially not relevant
 #electoral_terms <- readRDS("open_discourse_corpus/RDS/electoral_terms.RDS") #initially not relevant
-factions <- readRDS("open_discourse_corpus/RDS/factions.RDS") 
-politicians <- readRDS("open_discourse_corpus/RDS/politicians.RDS") 
-speeches <- readRDS("open_discourse_corpus/RDS/speeches.RDS")
+factions <- readRDS("data/open_discourse_corpus/RDS/factions.RDS") 
+politicians <- readRDS("data/open_discourse_corpus/RDS/politicians.RDS") 
+speeches <- readRDS("data/open_discourse_corpus/RDS/speeches.RDS")
+
+#join open discourse datasets
+open_discourse <- speeches %>%
+  left_join(politicians, join_by(politician_id == id)) %>%
+  left_join(factions, join_by(faction_id == id))
+
+#remove individual datasets
+rm(factions)
+rm(politicians)
+rm(speeches)
+
+#rename and reduce number of variables
+open_discourse %<>% 
+  mutate(
+    text_id = paste0("opendiscourse_", id),
+    author_id = paste0(politician_id, "_", first_name, "_", last_name)
+  ) %>%
+  select(text_id, text = speech_content, author_id, date, party = abbreviation,
+         position_short) #variables temporarily kept for filtering
+
+#filter out speeches without information about the politician, the party, pre 2000 and duplicates
+
+open_discourse %<>% 
+  filter(author_id != "-1_Not found_") %>%
+  filter(party != "-1_Not found_") %>%
+
+#
+
+speeches_filtered %<>% filter(full_name != "Fraktionslos", full_name != "not found")
 
 #filter speeches 
 speeches_filtered <- speeches
 
-#TO DO: filter out duplicates ----
+#####TO DO: filter out duplicates ----
 speeches %>% select(-session, -id, -document_url) %>% nrow()
 #919523
 
@@ -144,19 +175,9 @@ speeches_filtered %<>%
 #almost no overlap between speeches, 250-300 speeches per topic
 speeches_filtered %>% count(min8_climate, min6_covid, min6_migration, min5_war)
 
-#add politician and party information to the dataset
-speeches_filtered %<>% 
-  left_join(politicians, join_by(politician_id == id)) 
 
-speeches_filtered %<>% 
-  filter(politician_id != - 1)
 
-speeches_filtered %<>% 
-  left_join(factions, join_by(faction_id == id))
-
-speeches_filtered %<>% filter(full_name != "Fraktionslos", full_name != "not found")
-
-#To do review ids----
+#####To do review ids----
 speeches_sentences <- speeches_filtered %>%
   mutate(sentences = map2(id, speech_content, function(x, y) {
     doc <- ger_md(y)
@@ -205,10 +226,51 @@ sentence_embeddings_multilang <- multi_lang$encode(speeches_sentences$sentence)
 saveRDS(sentence_embeddings_multilang, "sentence_embeddings_multilang.rds")
 sentence_embeddings_multilang <- readRDS("sentence_embeddings_multilang.rds")
 
-##1.2. MFT Reddit Corpus - Trager et al., 2022 ####
+
+##1.2. ParlSpeech V2 (UK) - Rauh & Schwalbach, 2020 ####
+parlspeech_uk <- readRDS("data/uk_parl/parl_speech_v2/Corp_HouseOfCommons_V2.rds")
+#parlspeech_ger <- read_csv("data/parl_speech_v2/Corp_Bundestag_V2.rds") # problems with dataset - to be solved in case needed
+
+#hansard api 
+
+##1.3. US Congress - Gentzkow et al ####
+#speeches
+us_speeches_106 <- read_delim("data/us_congress/speeches_106.txt", delim = "|")
+us_speeches_107 <- read_delim("data/us_congress/speeches_107.txt", delim = "|")
+us_speeches_108 <- read_delim("data/us_congress/speeches_108.txt", delim = "|")
+us_speeches_109 <- read_delim("data/us_congress/speeches_109.txt", delim = "|")
+us_speeches_110 <- read_delim("data/us_congress/speeches_110.txt", delim = "|")
+us_speeches_111 <- read_delim("data/us_congress/speeches_111.txt", delim = "|")
+us_speeches_112 <- read_delim("data/us_congress/speeches_112.txt", delim = "|")
+us_speeches_113 <- read_delim("data/us_congress/speeches_113.txt", delim = "|")
+us_speeches_114 <- read_delim("data/us_congress/speeches_114.txt", delim = "|")
+
+#descr
+us_descr_106 <- read_delim("data/us_congress/descr_106.txt", delim = "|")
+us_descr_107 <- read_delim("data/us_congress/descr_107.txt", delim = "|")
+us_descr_108 <- read_delim("data/us_congress/descr_108.txt", delim = "|")
+us_descr_109 <- read_delim("data/us_congress/descr_109.txt", delim = "|")
+us_descr_110 <- read_delim("data/us_congress/descr_110.txt", delim = "|")
+us_descr_111 <- read_delim("data/us_congress/descr_111.txt", delim = "|")
+us_descr_112 <- read_delim("data/us_congress/descr_112.txt", delim = "|")
+us_descr_113 <- read_delim("data/us_congress/descr_113.txt", delim = "|")
+us_descr_114 <- read_delim("data/us_congress/descr_114.txt", delim = "|")
+
+#SpeakerMap
+us_SpeakerMap_106 <- read_delim("data/us_congress/106_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_107 <- read_delim("data/us_congress/107_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_108 <- read_delim("data/us_congress/108_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_109 <- read_delim("data/us_congress/109_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_110 <- read_delim("data/us_congress/110_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_111 <- read_delim("data/us_congress/111_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_112 <- read_delim("data/us_congress/112_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_113 <- read_delim("data/us_congress/113_SpeakerMap.txt", delim = "|")
+us_SpeakerMap_114 <- read_delim("data/us_congress/114_SpeakerMap.txt", delim = "|")
+
+##1.4. MFT Reddit Corpus - Trager et al., 2022 ####
 mft_reddit <- read_csv("mft_reddit_corpus/final_mfrc_data.csv")
 
-#TO DO: filter out duplicates ----
+#####TO DO: filter out duplicates ----
 
 mft_reddit_test <- mft_reddit %>% 
   select(text, subreddit, bucket) %>%
@@ -219,7 +281,7 @@ mft_reddit_test %<>%
     comment_id = row_number(),
   )
 
-#TO DO: review ids ----
+#####TO DO: review ids ----
 comments_sentences <- mft_reddit_test %>%
   mutate(sentences = map2(comment_id, text, function(x, y) {
     doc <- en_md(y)
@@ -469,7 +531,7 @@ cosine_similarity(deont_sentence_ddr_vector, conseq_sentence_ddr_vector)
 
 ##2.3.1 cosine similarity with ddr for open discourse dataset ----
 
-#TO DO: need to find a better solution for adding the scores ----
+#####TO DO: need to find a better solution for adding the scores ----
 deont_scores <- cosine_similarity(sentence_embeddings_multilang, deont_ddr_vector)
 conseq_scores <- cosine_similarity(sentence_embeddings_multilang, conseq_ddr_vector)
 
