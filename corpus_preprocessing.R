@@ -5,6 +5,8 @@
 #load R packages
 library(tidyverse) #for general data wrangling
 library(magrittr) #just for the %<>% operator out of laziness
+library(jsonlite) #to read json files
+library(legislatoR) #to retrieve information about the political affiliation of politicians, Rvoteview could be an alternative 
 
 #python setup
 library(reticulate) #to work with python libraries
@@ -60,18 +62,27 @@ open_discourse %<>%
     text = str_squish(text)
   ) 
 
-###To do: filter out very long and very short speeches ----
+####To do: filter out very long and very short speeches ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
 open_discourse %>%
+  filter(
+    text_length >= 200,
+    text_length <= quantile(text_length, 0.99)
+  ) %>% 
   ggplot(aes(text_length)) +
   geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 15000))
+  coord_cartesian(xlim = c(0, 1000))
 
 quantile(open_discourse$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
-#filter out top 10% and bottom 10%
+#filter out 1% of the longest speeches and speeches with less than 300 characters
 #open_discourse %<>% filter(text_length > 218, text_length <= 7195)
 
-#split into sentences - takes many hours, run as a background jobs in badges (e.g. 20 min for 10k on a normal laptop)  
+#split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
 
 #test badge
 open_discourse <- open_discourse[1:1000,] #change manually depending on what badge you want to run
@@ -114,12 +125,12 @@ open_discourse_sentences %<>%
 #remove objects from environment
 rm(docs)
 rm(docs_gen)
-rm(open_discourse_sentences)
+rm(open_discourse)
 
 #write to file 
 saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences_test.rds")
 
-###load pre-processed files ----
+####load pre-processed files ----
 open_discourse_sentences_test <- readRDS("data/open_discourse_corpus/open_discourse_sentences_test.rds")
 
 open_discourse_sentences_30 <- readRDS("data/open_discourse_corpus/open_discourse_sentences_1_30k.rds")
@@ -141,7 +152,8 @@ rm(open_discourse_sentences_135)
 
 open_discourse_sentences <- readRDS("data/open_discourse_corpus/open_discourse_sentences.rds")
 
-###To do: filter out very long and very short sentences ----
+####To do: filter out very long and very short sentences ----
+
 open_discourse_sentences %>%
   ggplot(aes(sentence_length)) +
   geom_histogram(binwidth = 10) +
@@ -154,7 +166,7 @@ quantile(open_discourse_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.
 
 ##1.2. US Congress ----
 
-##1.2.1. US Congress pre 2016 - Gentzkow et al ----
+###1.2.1. US Congress pre 2016 - Gentzkow et al ----
 
 #speeches
 us_speeches_pre2016 <- bind_rows(
@@ -227,13 +239,464 @@ uscongress_pre2016 %<>%
   filter(date >= as_date("2000-01-01")) %>% 
   distinct(text, .keep_all = TRUE)
 
-###To do: filter out very long and very short speeches ----
+####To do: filter out very long and very short speeches ----
+uscongress_pre2016 %<>% 
+  filter(text_id != "uscongress_pre2016_1140100957") #speech is so long it breaks the script
+
 uscongress_pre2016 %>%
+  filter(
+    text_length >= 200,
+    text_length <= quantile(text_length, 0.99)
+  )  %>% 
   ggplot(aes(text_length)) +
   geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 15000))
+  coord_cartesian(xlim = c(0, 500))
 
 quantile(uscongress_pre2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #filter out top 10% and bottom 10%
 #uscongress_pre2016 %<>% filter(text_length > 218, text_length <= 7195)
+
+#split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
+
+#test badge
+uscongress_pre2016 <- uscongress_pre2016[1:1000,] #change manually depending on what badge you want to run
+
+docs_gen <- en_md$pipe(uscongress_pre2016$text)
+
+docs <- iterate(docs_gen)
+
+uscongress_pre2016_sentences <- map2_dfr(
+  uscongress_pre2016$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+uscongress_pre2016_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+uscongress_pre2016_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+uscongress_pre2016_sentences %<>% 
+  left_join(uscongress_pre2016) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(uscongress_pre2016)
+
+#write to file 
+saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_test.rds")
+
+####load pre-processed files ----
+uscongress_pre2016_sentences_test <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_test.rds")
+
+uscongress_pre2016_sentences_50 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_50k.rds")
+uscongress_pre2016_sentences_150 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_150k.rds")
+uscongress_pre2016_sentences_250 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_250k.rds")
+uscongress_pre2016_sentences_350 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_350k.rds")
+uscongress_pre2016_sentences_400 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_400k.rds")
+
+uscongress_pre2016_sentences <- bind_rows(uscongress_pre2016_sentences_50, 
+                                          uscongress_pre2016_sentences_150,
+                                          uscongress_pre2016_sentences_250,
+                                          uscongress_pre2016_sentences_350,
+                                          uscongress_pre2016_sentences_400)
+
+saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
+
+rm(uscongress_pre2016_sentences_50)
+rm(uscongress_pre2016_sentences_150)
+rm(uscongress_pre2016_sentences_250)
+rm(uscongress_pre2016_sentences_350)
+rm(uscongress_pre2016_sentences_400)
+
+uscongress_pre2016_sentences <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
+
+####To do: filter out very long and very short sentences ----
+uscongress_pre2016_sentences %>%
+  ggplot(aes(sentence_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 500))
+
+quantile(uscongress_pre2016_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
+
+###1.2.2. US Congress post 2016 - Judd et al ----
+
+#retrieve political affiliation from legislatoR
+cld_content()
+us_core <- get_core(legislature = "usa_house")
+us_party <- get_political(legislature = "usa_house") 
+us_ids <- get_ids(legislature = "usa_house") 
+
+us_legislatoR_combined <- us_core %>%
+  left_join(us_ids) %>%
+  full_join(us_party, join_by(pageid)) %>%
+  mutate(across(everything(), as.character)) %>%
+  filter(!is.na(bioguide))
+
+rm(us_core)
+rm(us_party)
+rm(us_ids)
+
+#volume and congress session for matching party affiliation
+congress_session <- tibble(
+  vol = c(162, 163, 164, 165, 166, 167, 168, 169, 170, 171) %>% as.character(),
+  session = c(114, 115, 115, 116, 116, 117, 117, 118, 118, 119) %>% as.character()
+)
+
+
+#test files
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1241-2.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-13/json/CREC-2016-09-12-pt1-PgE1241-3.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1241-3.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1241-4.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1241-5.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1241-6.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1242.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgE1242-2.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-12/json/CREC-2016-09-12-pt1-PgH5279.json")
+test_json <- fromJSON("data/us_congress/judd_post2016/output/2016/CREC-2016-09-27/json/CREC-2016-09-27-pt1-PgH5961.json")
+
+# header as tibble
+header <- as_tibble(test_json$header)
+
+# content as tibble
+content <- as_tibble(test_json$content) %>% filter(kind == "speech")
+
+# related_bills as tibble - only exists in some files
+#related_bills <- as_tibble(test_json$related_bills)
+
+# combine 
+test_combined <- bind_cols(header, content) %>%
+  left_join(congress_session) %>%
+  left_join(us_legislatoR_combined, 
+            by = c( "speaker_bioguide" = "bioguide", "session" = "session")) %>% 
+  mutate(across(everything(), as.character))
+
+rm(test_json)
+rm(header)
+rm(content)
+rm(test_combined)
+rm(test_json)
+
+#function to convert individual json files into tibble format (requires additional data)
+parse_congress_files <- function(path) {
+  
+  json_file <- fromJSON(path)
+  
+  header <- as_tibble(json_file$header)
+  content <- as_tibble(json_file$content) %>% filter(kind == "speech")
+  
+  if (!"speaker_bioguide" %in% names(content)) {
+    content$speaker_bioguide <- NA_character_
+  }
+  
+  bind_cols(tibble(file = path),header, content) %>% 
+    mutate(across(everything(), as.character)) %>%
+    left_join(congress_session) %>%
+    left_join(us_legislatoR_combined, 
+              by = c( "speaker_bioguide" = "bioguide", "session" = "session")) 
+}
+
+
+#list all 2016 files
+root <- "data/us_congress/judd_post2016/output/2016"   
+
+filepaths_2016 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2016)
+file.exists(filepaths_2016)
+
+#test_files <- filepaths_2016[1:10]
+congress_tbl_2016 <- map_dfr(filepaths_2016, parse_congress_files)
+
+congress_tbl_2016 %>% distinct(text)
+
+congress_tbl_2016 %>% count(file) %>% view() 
+
+
+#list all 2017 files
+root <- "data/us_congress/judd_post2016/output/2017"   
+
+filepaths_2017 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2017)
+file.exists(filepaths_2017) 
+
+congress_tbl_2017 <- map_dfr(filepaths_2017, parse_congress_files)
+
+#list all 2018 files
+root <- "data/us_congress/judd_post2016/output/2018"   
+
+filepaths_2018 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2018)
+file.exists(filepaths_2018) 
+
+congress_tbl_2018 <- map_dfr(filepaths_2018, parse_congress_files)
+
+#list all 2019 files
+root <- "data/us_congress/judd_post2016/output/2019"   
+
+filepaths_2019 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2019)
+file.exists(filepaths_2019) 
+
+congress_tbl_2019 <- map_dfr(filepaths_2019, parse_congress_files)
+
+#list all 2020 files
+root <- "data/us_congress/judd_post2016/output/2020"   
+
+filepaths_2020 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2020)
+file.exists(filepaths_2020) 
+
+congress_tbl_2020 <- map_dfr(filepaths_2020, parse_congress_files)
+
+#list all 2021 files
+root <- "data/us_congress/judd_post2016/output/2021"   
+
+filepaths_2021 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2021)
+file.exists(filepaths_2021) 
+
+congress_tbl_2021 <- map_dfr(filepaths_2021, parse_congress_files)
+
+#list all 2022 files
+root <- "data/us_congress/judd_post2016/output/2022"   
+
+filepaths_2022 <- list.files(
+  root,
+  pattern = "\\.json$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+length(filepaths_2022)
+file.exists(filepaths_2022) 
+
+congress_tbl_2022 <- map_dfr(filepaths_2022, parse_congress_files)
+
+#join files and write to file
+
+uscongress_post2016_raw <- bind_rows(
+  congress_tbl_2016,
+  congress_tbl_2017,
+  congress_tbl_2018,
+  congress_tbl_2019,
+  congress_tbl_2020,
+  congress_tbl_2021,
+  congress_tbl_2022
+)
+
+saveRDS(uscongress_post2016_raw, "data/us_congress/judd_post2016/uscongress_post2016_raw.rds")
+
+#remove findividual objects
+rm(header)
+rm(content)
+
+rm(root)
+rm(filepaths_2016)
+rm(filepaths_2017)
+rm(filepaths_2018)
+rm(filepaths_2019)
+rm(filepaths_2020)
+rm(filepaths_2021)
+rm(filepaths_2022)
+
+rm(congress_session)
+rm(us_legislatoR_combined)
+
+rm(congress_tbl_2016)
+rm(congress_tbl_2017)
+rm(congress_tbl_2018)
+rm(congress_tbl_2019)
+rm(congress_tbl_2020)
+rm(congress_tbl_2021)
+rm(congress_tbl_2022)
+
+####load pre-processed file ----
+uscongress_post2016_raw <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_raw.rds")
+
+#House of Representatives and Democrats or Republicans only
+uscongress_post2016_raw %<>%
+  filter(chamber == "House") 
+
+#rename and reduce number of variables
+uscongress_post2016 <- uscongress_post2016_raw %>% 
+  mutate(
+    text_id = paste0("uscongress_post2016_", str_extract(file, "(?<=json/).*(?=.json)"), "_", turn),
+    author_id = speaker_bioguide,
+    date = ymd(paste(year, month, day)),
+    text = str_remove(text, paste0(speaker, ".."))  %>% str_trim(),
+    text_length = str_length(text)
+  ) %>%
+  select(text_id, text, author_id, date, text_length, party)
+
+
+#filter out speeches without information about the politician, the party, pre 2000 and duplicates
+uscongress_post2016 %<>% 
+  filter(!is.na(author_id)) %>%
+  filter(party == "D" | party == "R") %>% 
+  filter(date >= as_date("2000-01-01")) %>% 
+  distinct(text, .keep_all = TRUE)
+
+###To do: filter out very long and very short speeches ----
+uscongress_post2016 %>%
+  filter(
+    !text_length >= 300,
+    text_length <= quantile(text_length, 0.99)
+  ) %>% view()
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 1000))
+
+quantile(uscongress_post2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#filter out top 10% and bottom 10%
+#uscongress_post2016 %<>% filter(text_length > 218, text_length <= 7195)
+
+#split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
+#test badge
+uscongress_post2016 <- uscongress_post2016[1:1000,] #change manually depending on what badge you want to run
+
+docs_gen <- en_md$pipe(uscongress_post2016$text)
+
+docs <- iterate(docs_gen)
+
+uscongress_post2016_sentences <- map2_dfr(
+  uscongress_post2016$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+uscongress_post2016_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+uscongress_post2016_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+uscongress_post2016_sentences %<>% 
+  left_join(uscongress_post2016) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(uscongress_post2016_raw)
+rm(uscongress_post2016)
+
+#write to file 
+saveRDS(uscongress_post2016_sentences, "data/us_congress/judd_post2016/uscongress_post2016_sentences_test.rds")
+
+###load pre-processed files ----
+uscongress_post2016_sentences_test <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_test.rds")
+
+uscongress_post2016_sentences_100 <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_100k.rds")
+uscongress_post2016_sentences_120 <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_120k.rds")
+
+uscongress_post2016_sentences <- bind_rows(uscongress_post2016_sentences_100, 
+                                      uscongress_post2016_sentences_120)
+
+saveRDS(uscongress_post2016_sentences, "data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
+
+rm(uscongress_post2016_sentences_100)
+rm(uscongress_post2016_sentences_120)
+
+uscongress_post2016_sentences <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
+
+###To do: filter out very long and very short sentences ----
+uscongress_pre2016_sentences %>%
+  ggplot(aes(sentence_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 500))
+
+quantile(uscongress_pre2016_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
+
+###1.2.3. US Congress combined ----
+
+uscongress_pre2016_sentences <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
+uscongress_post2016_sentences <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
+
+uscongress_combined_sentences <- bind_rows(uscongress_pre2016_sentences, 
+                                           uscongress_post2016_sentences)
+
+uscongress_combined_sentences %>% 
+  mutate(
+    year = year(date)
+  ) %>% 
+  count(year) %>% view()
+
+rm(uscongress_pre2016_sentences)
+rm(uscongress_post2016_sentences)
+
+saveRDS(uscongress_combined_sentences, "data/us_congress/uscongress_sentences.rds")
+
+####load pre-processed file ----
+uscongress_combined_sentences <- readRDS("data/us_congress/uscongress_sentences.rds")

@@ -1,4 +1,4 @@
-#Script to preprocess corpora ahead of pre-sampling and annotation
+#Script to split the Open Discourse Corpus into sentences ahead of pre-sampling and annotation
 
 #0.Set up ----
 
