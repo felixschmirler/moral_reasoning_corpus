@@ -7,6 +7,8 @@ library(tidyverse) #for general data wrangling
 library(magrittr) #just for the %<>% operator out of laziness
 library(jsonlite) #to read json files
 library(legislatoR) #to retrieve information about the political affiliation of politicians, Rvoteview could be an alternative 
+library(rvest) #for scraping UK parliament data 2019-2022
+
 
 #python setup
 library(reticulate) #to work with python libraries
@@ -24,9 +26,9 @@ en_md <- spacy$load("en_core_web_md") #mostly to split english speeches into sen
 #contributions_extended <- readRDS("open_discourse_corpus/RDS/contributions_extended.RDS") #initially not relevant
 #contributions_simplified <- readRDS("open_discourse_corpus/RDS/contributions_simplified.RDS") #initially not relevant
 #electoral_terms <- readRDS("open_discourse_corpus/RDS/electoral_terms.RDS") #initially not relevant
-factions <- readRDS("data/open_discourse_corpus/RDS/factions.RDS") 
-politicians <- readRDS("data/open_discourse_corpus/RDS/politicians.RDS") 
-speeches <- readRDS("data/open_discourse_corpus/RDS/speeches.RDS")
+factions <- readRDS("data/german_bundestag/open_discourse_corpus/RDS/factions.RDS") 
+politicians <- readRDS("data/german_bundestag/open_discourse_corpus/RDS/politicians.RDS") 
+speeches <- readRDS("data/german_bundestag/open_discourse_corpus/RDS/speeches.RDS")
 
 #join open discourse datasets
 open_discourse <- speeches %>%
@@ -128,29 +130,29 @@ rm(docs_gen)
 rm(open_discourse)
 
 #write to file 
-saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences_test.rds")
+saveRDS(open_discourse_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
 
 ####load pre-processed files ----
-open_discourse_sentences_test <- readRDS("data/open_discourse_corpus/open_discourse_sentences_test.rds")
+open_discourse_sentences_test <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
 
-open_discourse_sentences_30 <- readRDS("data/open_discourse_corpus/open_discourse_sentences_1_30k.rds")
-open_discourse_sentences_60 <- readRDS("data/open_discourse_corpus/open_discourse_sentences_30k_60k.rds")
-open_discourse_sentences_90 <- readRDS("data/open_discourse_corpus/open_discourse_sentences_60k_90k.rds")
-open_discourse_sentences_135 <- readRDS("data/open_discourse_corpus/open_discourse_sentences_90k_135k.rds")
+open_discourse_sentences_30 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_1_30k.rds")
+open_discourse_sentences_60 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_30k_60k.rds")
+open_discourse_sentences_90 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_60k_90k.rds")
+open_discourse_sentences_135 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_90k_135k.rds")
 
 open_discourse_sentences <- bind_rows(open_discourse_sentences_30, 
                                       open_discourse_sentences_60,
                                       open_discourse_sentences_90,
                                       open_discourse_sentences_135)
 
-saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences.rds")
+saveRDS(open_discourse_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences.rds")
 
 rm(open_discourse_sentences_30)
 rm(open_discourse_sentences_60)
 rm(open_discourse_sentences_90)
 rm(open_discourse_sentences_135)
 
-open_discourse_sentences <- readRDS("data/open_discourse_corpus/open_discourse_sentences.rds")
+open_discourse_sentences <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences.rds")
 
 ####To do: filter out very long and very short sentences ----
 
@@ -608,6 +610,7 @@ quantile(uscongress_post2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 
 #uscongress_post2016 %<>% filter(text_length > 218, text_length <= 7195)
 
 #split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
+
 #test badge
 uscongress_post2016 <- uscongress_post2016[1:1000,] #change manually depending on what badge you want to run
 
@@ -700,3 +703,137 @@ saveRDS(uscongress_combined_sentences, "data/us_congress/uscongress_sentences.rd
 
 ####load pre-processed file ----
 uscongress_combined_sentences <- readRDS("data/us_congress/uscongress_sentences.rds")
+
+##1.3. UK Parliament ----
+
+###1.3.1. ParlSpeech V2 (UK) - Rauh & Schwalbach, 2020 ####
+parlspeech_uk <- readRDS("data/uk_parliament/uk_parlspeechv2/Corp_HouseOfCommons_V2.rds")
+
+#rename and reduce number of variables
+parlspeech_uk %<>% 
+  mutate(
+    text_id = paste0("uk_parlspeech_", date, "_", speechnumber),
+    author_id = paste0(speaker),
+    date = ymd(date),
+    text_length = str_length(text)
+  ) %>%
+  select(text_id, text, author_id, date, text_length, party) 
+
+#filter out speeches without information about the politician, the party, pre 2000 and duplicates
+parlspeech_uk %<>% 
+  filter(author_id != "CHAIR") %>%
+  filter(party == "Lab" | party == "Con") %>%  
+  filter(date >= as_date("2000-01-01")) %>% 
+  distinct(text, .keep_all = TRUE)
+
+
+####To do: filter out very long and very short speeches ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
+parlspeech_uk %>%
+  filter(
+    text_length >= 100,
+    text_length <= quantile(text_length, 0.99)
+  ) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 1000))
+
+quantile(parlspeech_uk$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#test badge
+parlspeech_uk <- parlspeech_uk[1:1000,] #change manually depending on what badge you want to run
+
+docs_gen <- en_md$pipe(parlspeech_uk$text)
+
+docs <- iterate(docs_gen)
+
+parlspeech_uk_sentences <- map2_dfr(
+  parlspeech_uk$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+parlspeech_uk_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+parlspeech_uk_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+parlspeech_uk_sentences %<>% 
+  left_join(parlspeech_uk) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(parlspeech_uk)
+
+#write to file 
+saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
+
+###load pre-processed files ----
+parlspeech_uk_sentences_test <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
+
+parlspeech_uk_sentences_50 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
+
+parlspeech_uk_sentence <- bind_rows(parlspeech_uk_sentences_50, 
+                                    parlspeech_uk_sentences_150)
+
+saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
+
+rm(parlspeech_uk_sentences_50)
+rm(parlspeech_uk_sentences_150)
+
+parlspeech_uk_sentences <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
+
+###1.3.2. Data from theyworkforyou.com ####
+
+#get list of parliament records for missing time window
+url <- "https://www.theyworkforyou.com/pwdata/scrapedxml/debates/"  
+
+page <- read_html(url)
+
+links <- page %>%
+  html_elements("a") %>%
+  html_attr("href") %>%
+  as_tibble() %>%
+  slice(-(1:6))
+
+links %<>% 
+  mutate(
+    date = str_extract(value, "(?<=debates).*(?=..xml)") %>% ymd()
+  ) %>%
+  filter(date >= as_date("2019-12-17")) %>% 
+  filter(date <= as_date("2022-05-20"))
+
+#test 
+
+url <- paste0("https://www.theyworkforyou.com/pwdata/scrapedxml/debates/", links$value[1])
+
+page <- read_html(url)
+
+test <- page %>%
+  html_elements("speech") %>% as.character %>% view()
+
+test #frankly too much hassle for now
+
+
