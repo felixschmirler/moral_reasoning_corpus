@@ -61,3 +61,9 @@ rsconnect/
 *.json
 *.xml
 *.htm
+
+#
+*.ldjson
+
+#
+*.pkl

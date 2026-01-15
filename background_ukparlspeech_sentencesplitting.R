@@ -58,7 +58,7 @@ parlspeech_uk %>%
 quantile(parlspeech_uk$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #test badge
-parlspeech_uk <- parlspeech_uk[50001:500000,] #change manually depending on what badge you want to run
+parlspeech_uk <- parlspeech_uk[750001:1055250,] #change manually depending on what badge you want to run
 
 docs_gen <- en_md$pipe(parlspeech_uk$text)
 
@@ -101,6 +101,6 @@ rm(docs_gen)
 rm(parlspeech_uk)
 
 #write to file 
-saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_500k.rds")
+saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m.rds")
 
 

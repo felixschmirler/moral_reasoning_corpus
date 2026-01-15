@@ -7,7 +7,9 @@ library(tidyverse) #for general data wrangling
 library(magrittr) #just for the %<>% operator out of laziness
 library(jsonlite) #to read json files
 library(legislatoR) #to retrieve information about the political affiliation of politicians, Rvoteview could be an alternative 
-library(rvest) #for scraping UK parliament data 2019-2022
+#library(rvest) #for scraping UK parliament data 2019-2022 paused for now
+library(data.table)
+
 
 
 #python setup
@@ -19,6 +21,9 @@ py_config()
 spacy <- import("spacy")
 ger_md <- spacy$load("de_core_news_md") #mostly to split german speeches into sentences
 en_md <- spacy$load("en_core_web_md") #mostly to split english speeches into sentences
+
+#import pandas 
+pd <- import("pandas", convert = FALSE)
 
 #1. Data ----
 ##1.1. Open Discourse Corpus - Richter et al - Richter et al. - 2023 - Open Discourse Corpus ####
@@ -793,15 +798,26 @@ saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_
 ###load pre-processed files ----
 parlspeech_uk_sentences_test <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
 
-parlspeech_uk_sentences_50 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
+parlspeech_uk_sentences_50 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_50k.rds")
+parlspeech_uk_sentences_250 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_250k.rds")
+parlspeech_uk_sentences_500 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_500k.rds")
+parlspeech_uk_sentences_750 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_750k.rds")
+parlspeech_uk_sentences_1m <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m.rds")
 
-parlspeech_uk_sentence <- bind_rows(parlspeech_uk_sentences_50, 
-                                    parlspeech_uk_sentences_150)
+
+parlspeech_uk_sentences <- bind_rows(parlspeech_uk_sentences_50, 
+                                    parlspeech_uk_sentences_250, 
+                                    parlspeech_uk_sentences_500, 
+                                    parlspeech_uk_sentences_750, 
+                                    parlspeech_uk_sentences_1m)
 
 saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
 
 rm(parlspeech_uk_sentences_50)
-rm(parlspeech_uk_sentences_150)
+rm(parlspeech_uk_sentences_250)
+rm(parlspeech_uk_sentences_500)
+rm(parlspeech_uk_sentences_750)
+rm(parlspeech_uk_sentences_1m)
 
 parlspeech_uk_sentences <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
 
@@ -836,4 +852,672 @@ test <- page %>%
 
 test #frankly too much hassle for now
 
+rm(url)
+rm(page)
+rm(test)
+rm(links)
 
+##1.4. MFT Reddit Corpus - Trager et al., 2022 ####
+mft_reddit <- read_csv("data/mft_reddit_corpus/final_mfrc_data.csv")
+
+mft_reddit %>% count(subreddit, bucket) %>% view()
+
+#rename and reduce number of variables
+mft_reddit %<>% 
+  mutate(
+    text_id = paste0("mft_reddit_", subreddit, "_", bucket, "_", row_number()),
+    author_id = NA_character_,
+    date = NA_Date_,
+    text_length = str_length(text),
+    party = NA_character_
+  ) %>%
+  select(text_id, text, author_id, date, text_length, party) 
+
+
+#filter out duplicates
+mft_reddit %<>% 
+  distinct(text, .keep_all = TRUE) 
+
+####To do: filter out very long and very short posts ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
+mft_reddit %>%
+  #filter(
+  #  text_length >= 100,
+  #  text_length <= quantile(text_length, 0.99)
+  #) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 1000))
+
+quantile(mft_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#test badge
+#mft_reddit <- mft_reddit[1:1000,] #change manually depending on what badge you want to run
+
+docs_gen <- en_md$pipe(mft_reddit$text)
+
+docs <- iterate(docs_gen)
+
+mft_reddit_sentences <- map2_dfr(
+  mft_reddit$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+mft_reddit_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+mft_reddit_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+mft_reddit_sentences %<>% 
+  left_join(mft_reddit) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(mft_reddit)
+
+#write to file 
+saveRDS(mft_reddit_sentences, "data/mft_reddit_corpus/mft_reddit_sentences.rds")
+
+###load pre-processed files ----
+mft_reddit_sentences <- readRDS("data/mft_reddit_corpus/mft_reddit_sentences.rds")
+
+##1.5. MFT Twitter Corpus - Hoover et al., 2020 ####
+mft_twitter <- fromJSON("data/mft_twitter_corpus/MFTC_V4_text.json")
+
+mft_twitter %<>% unnest() %>% select(-annotations)
+
+#rename and reduce number of variables
+mft_twitter %<>% 
+  mutate(
+    text_id = paste0("mft_twitter_", Corpus, "_", tweet_id),
+    author_id = NA_character_,
+    date = NA_Date_,
+    text_length = str_length(tweet_text),
+    party = NA_character_
+  ) %>%
+  select(text_id, text = tweet_text, author_id, date, text_length, party) 
+
+
+#filter out duplicates
+mft_twitter %<>% 
+  distinct(text, .keep_all = TRUE) 
+
+####To do: filter out very long and very short posts ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
+mft_twitter %>%
+  #filter(
+  #  text_length >= 100,
+  #  text_length <= quantile(text_length, 0.99)
+  #) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 1000))
+
+quantile(mft_twitter$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#test badge
+#mft_twitter <- mft_twitter[1:1000,] #change manually depending on what badge you want to run
+
+docs_gen <- en_md$pipe(mft_twitter$text)
+
+docs <- iterate(docs_gen)
+
+mft_twitter_sentences <- map2_dfr(
+  mft_twitter$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+mft_twitter_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+mft_twitter_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+mft_twitter_sentences %<>% 
+  left_join(mft_twitter) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(mft_twitter)
+
+#write to file 
+saveRDS(mft_twitter_sentences, "data/mft_twitter_corpus/mft_twitter_sentences.rds")
+
+###load pre-processed files ----
+mft_twitter_sentences <- readRDS("data/mft_twitter_corpus/mft_twitter_sentences.rds")
+
+##1.6. GeRedE German Reddit Corpus - Blombach et al. (2020) ####
+
+#huge file 64gb - creating 5% subsets of huge corpus for further processing
+in_path  <- "data/german_reddit_corpus/gerede.ldjson"
+out_path <- "data/german_reddit_corpus/gerede_100pct.ldjson"  #change name for every 5% subset
+
+total_bytes <- file.info(in_path)$size
+start_bytes <- floor(0.95 * total_bytes)  #change for every 5% subset
+end_bytes   <- floor(1 * total_bytes)  #change for every 5% subset 
+
+in_con  <- file(in_path,  open = "rb")     
+out_con <- file(out_path, open = "w")
+
+seek(in_con, where = start_bytes, origin = "start")  
+readLines(in_con, n = 1, warn = FALSE)               
+
+bytes_read  <- start_bytes                           
+chunk_size  <- 10000
+
+repeat {
+  lines <- readLines(in_con, n = chunk_size, warn = FALSE)
+  if (length(lines) == 0) break
+  
+  line_bytes <- sum(as.numeric(nchar(lines, type = "bytes"))) +
+    as.numeric(length(lines))   # newline chars
+  
+  if (bytes_read + line_bytes <= end_bytes) {        # CHANGED
+    writeLines(lines, out_con)
+    bytes_read <- bytes_read + line_bytes
+  } else {
+    cum <- cumsum(as.numeric(nchar(lines, type = "bytes")) + 1)
+    keep <- which(cum + bytes_read <= end_bytes)     # CHANGED
+    if (length(keep)) writeLines(lines[keep], out_con)
+    break
+  }
+}
+
+close(in_con)   
+close(out_con)   
+
+#remove objects
+rm(bytes_read) 
+rm(chunk_size) 
+rm(cum) 
+rm(in_con) 
+rm(in_path) 
+rm(keep) 
+rm(line_bytes) 
+rm(lines) 
+rm(out_con) 
+rm(out_path) 
+rm(start_bytes) 
+rm(end_bytes) 
+rm(total_bytes) 
+
+#read file 
+con <- file("data/german_reddit_corpus/gerede_70pct.ldjson") #change for every file
+gerede_reddit <- stream_in(con, pagesize = 1000, simplifyDataFrame = FALSE)
+
+#filter out posts tagged as politics
+
+gerede_politics <- keep(
+  gerede_reddit,
+  ~ identical(.x[[1]][["link_flair_text"]], "Politik")
+)
+
+#write to file 
+saveRDS(gerede_politics, "data/german_reddit_corpus/gerede_70pct_politics.rds")
+
+rm(gerede_reddit)
+
+
+###load pre-processed files 
+gerede_politics_5 <- readRDS("data/german_reddit_corpus/gerede_5pct_politics.rds")
+gerede_politics_10 <- readRDS("data/german_reddit_corpus/gerede_10pct_politics.rds")
+gerede_politics_15 <- readRDS("data/german_reddit_corpus/gerede_15pct_politics.rds")
+gerede_politics_20 <- readRDS("data/german_reddit_corpus/gerede_20pct_politics.rds")
+gerede_politics_25 <- readRDS("data/german_reddit_corpus/gerede_25pct_politics.rds")
+gerede_politics_30 <- readRDS("data/german_reddit_corpus/gerede_30pct_politics.rds")
+gerede_politics_35 <- readRDS("data/german_reddit_corpus/gerede_35pct_politics.rds")
+gerede_politics_40 <- readRDS("data/german_reddit_corpus/gerede_40pct_politics.rds")
+gerede_politics_45 <- readRDS("data/german_reddit_corpus/gerede_45pct_politics.rds")
+gerede_politics_50 <- readRDS("data/german_reddit_corpus/gerede_50pct_politics.rds")
+gerede_politics_55 <- readRDS("data/german_reddit_corpus/gerede_55pct_politics.rds")
+gerede_politics_60 <- readRDS("data/german_reddit_corpus/gerede_60pct_politics.rds")
+gerede_politics_65 <- readRDS("data/german_reddit_corpus/gerede_65pct_politics.rds")
+gerede_politics_70 <- readRDS("data/german_reddit_corpus/gerede_70pct_politics.rds")
+gerede_politics_75 <- readRDS("data/german_reddit_corpus/gerede_75pct_politics.rds")
+gerede_politics_80 <- readRDS("data/german_reddit_corpus/gerede_80pct_politics.rds")
+gerede_politics_85 <- readRDS("data/german_reddit_corpus/gerede_85pct_politics.rds")
+gerede_politics_90 <- readRDS("data/german_reddit_corpus/gerede_90pct_politics.rds")
+gerede_politics_95 <- readRDS("data/german_reddit_corpus/gerede_95pct_politics.rds")
+gerede_politics_100 <- readRDS("data/german_reddit_corpus/gerede_100pct_politics.rds")
+
+
+
+gerede_politics_list <- c(gerede_politics_5, gerede_politics_10, gerede_politics_15, 
+          gerede_politics_20, gerede_politics_25, gerede_politics_30,
+          gerede_politics_35, gerede_politics_40, gerede_politics_45,
+          gerede_politics_50, gerede_politics_55, gerede_politics_60,
+          gerede_politics_65, gerede_politics_70, gerede_politics_75, 
+          gerede_politics_80, gerede_politics_85, gerede_politics_90, 
+          gerede_politics_95, gerede_politics_100) 
+
+rm(gerede_politics_5)
+rm(gerede_politics_10)
+rm(gerede_politics_15)
+rm(gerede_politics_20)
+rm(gerede_politics_25)
+rm(gerede_politics_30)
+rm(gerede_politics_35)
+rm(gerede_politics_40)
+rm(gerede_politics_45)
+rm(gerede_politics_50)
+rm(gerede_politics_55)
+rm(gerede_politics_60)
+rm(gerede_politics_65)
+rm(gerede_politics_70)
+rm(gerede_politics_75)
+rm(gerede_politics_80)
+rm(gerede_politics_85)
+rm(gerede_politics_90)
+rm(gerede_politics_95)
+rm(gerede_politics_100)
+
+gerede_politics_list %>%
+  View()
+
+#write to file 
+saveRDS(gerede_politics_list, "data/german_reddit_corpus/gerede_politics_list.rds")
+
+###load pre-processed file 
+gerede_politics_list <- readRDS("data/german_reddit_corpus/gerede_politics_list.rds")
+
+# x = your big nested list, e.g. gerede_politics_all
+# structure: x[[i]][[j]] is one post/comment (a named list)
+
+to_cell <- function(z) {
+  if (is.null(z)) return(NA_character_)
+  
+  # atomic vectors -> collapse to single string
+  if (is.atomic(z)) return(paste(as.character(z), collapse = " | "))
+  
+  # nested lists -> store as compact string (so nothing breaks)
+  paste(capture.output(str(z, max.level = 3)), collapse = " ")
+}
+
+one_row <- function(item, outer_id, inner_id) {
+  item2 <- map(item, to_cell)
+  item2$thread_id <- as.character(outer_id)
+  item2$item_id   <- as.character(inner_id)
+  as_tibble_row(item2)
+}
+
+gerede_politics_df <- imap_dfr(gerede_politics_list, function(thread, outer_id) {
+  imap_dfr(thread, ~ one_row(.x, outer_id = outer_id, inner_id = .y))
+})
+
+rm(gerede_politics_list)
+
+#write to file 
+saveRDS(gerede_politics_df, "data/german_reddit_corpus/gerede_politics_df.rds")
+
+###load pre-processed file 
+gerede_politics_df <- readRDS("data/german_reddit_corpus/gerede_politics_df.rds")
+
+#remove the original post - usually just a url
+gerede_politics_comments <- gerede_politics_df %>% filter(item_id != "1") 
+
+#filter out duplicates
+gerede_politics_comments %<>% 
+  distinct(body, .keep_all = TRUE) 
+
+#remove 6 odd IDs that appear more than once
+odd_ids <- gerede_politics_comments %>% count(id) %>% filter(n > 1) %>% pull(id)
+gerede_politics_comments %<>% filter(!id %in% odd_ids) 
+
+#remove missing values and deleted comments
+gerede_politics_comments %<>% 
+  filter(!is.na(body)) %>% 
+  filter(body != "[deleted]")
+
+
+#rename and reduce number of variables
+gerede_politics_comments %<>% 
+  mutate(
+    text_id = paste0("gerede_reddit_", id),
+    author_id = author,
+    date = as_datetime(as.numeric(created_utc), tz = "UTC"),
+    text_length = str_length(body),
+    party = NA_character_
+  ) %>%
+  select(text_id, text = body, author_id, date, text_length, party) 
+
+
+
+#write to file 
+saveRDS(gerede_politics_comments, "data/german_reddit_corpus/gerede_politics_comments.rds")
+
+rm(gerede_politics_df)
+
+###load pre-processed file 
+gerede_politics_comments <- readRDS("data/german_reddit_corpus/gerede_politics_comments.rds")
+
+####To do: filter out very long and very short posts ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
+gerede_politics_comments %>%
+  #filter(
+  #  text_length >= 100,
+  #  text_length <= quantile(text_length, 0.99)
+  #) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 1000))
+
+quantile(gerede_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#sentence splitting - run as background job in separate script
+docs_gen <- en_md$pipe(gerede_politics_comments$text)
+
+docs <- iterate(docs_gen)
+
+gerede_politics_sentences <- map2_dfr(
+  gerede_politics_comments$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+gerede_politics_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+gerede_politics_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+gerede_politics_sentences %<>% 
+  left_join(gerede_politics_comments) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(gerede_politics_comments)
+
+#write to file 
+saveRDS(gerede_politics_sentences, "data/german_reddit_corpus/gerede_politics_sentences.rds")
+
+###load pre-processed file ----
+gerede_politics_sentences <- readRDS("data/german_reddit_corpus/gerede_politics_sentences.rds")
+
+##1.7.eMFD - Hopp et al., 2021 ####
+
+#2k uncoded news articles
+emfd_news_uncoded <- fromJSON("data/emfd_news/uncoded_news_text.json")
+
+keep <- c("source", "text", "timestamp", "url")
+
+emfd_news_uncoded <- emfd_news_uncoded[keep] %>%
+  as_tibble() 
+
+#convert from lists to vectors
+emfd_news_uncoded %<>% 
+  mutate(
+    timestamp = map_chr(timestamp, ~ sprintf("%.0f", as.numeric(.x[[1]])))
+  ) %>% 
+  mutate(across(everything(), ~ map_chr(.x, ~ as.character(.x[[1]]))))
+
+#convert timestamp column
+emfd_news_uncoded %<>% 
+  mutate(
+    date = ymd(substr(timestamp, 1, 8))
+  ) %>%
+  select(-timestamp)
+
+#1k coded news articles
+df_py <- pd$read_pickle("data/emfd_news/coded_news.pkl")
+
+# convert timestamp
+df_py$timestamp <- df_py$timestamp$astype("int64")$astype("string")
+
+emfd_news_coded <- py_to_r(df_py)
+rm(df_py)
+
+emfd_news_coded %<>% 
+  mutate(
+    date = ymd(substr(timestamp, 1, 8))
+  ) %>%
+  select(source, text, url, date)
+  
+#combine
+emfd_news <- bind_rows(emfd_news_coded, emfd_news_uncoded)
+rm(emfd_news_coded)
+rm(emfd_news_uncoded)
+
+#rename and reduce number of variables
+emfd_news %<>% 
+  mutate(
+    text_id = paste0("emfd_", url),
+    author_id = source,
+    date = date,
+    text_length = str_length(text),
+    party = NA_character_
+  ) %>%
+  select(text_id, text, author_id, date, text_length, party) 
+
+
+#write to file 
+saveRDS(emfd_news, "data/emfd_news/emfd_news.rds")
+
+###load pre-processed file ----
+emfd_news <- readRDS("data/emfd_news/emfd_news.rds")
+
+####To do: filter out very long and very short posts ----
+
+#lower limit examples
+#11 tokens in Aroyehun et al. 2025 - fairly inclusive
+#500 words Bachmann & Gleibs 2024 - more conservative
+
+emfd_news %>%
+  #filter(
+  #  text_length >= 100,
+  #  text_length <= quantile(text_length, 0.99)
+  #) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 10000))
+
+quantile(mft_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
+
+#split into sentences
+docs_gen <- en_md$pipe(emfd_news$text)
+
+docs <- iterate(docs_gen)
+
+emfd_news_sentences <- map2_dfr(
+  emfd_news$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+emfd_news_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+emfd_news_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+emfd_news_sentences %<>% 
+  left_join(emfd_news) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(emfd_news)
+
+#write to file 
+saveRDS(emfd_news_sentences, "data/emfd_news/emfd_news_sentences.rds")
+
+###load pre-processed files ----
+emfd_news_sentences <- readRDS("data/emfd_news/emfd_news_sentences.rds")
+
+##1.8.German Election Programs (2002-2021) - Voit et al. 2024 ####
+
+files <- list.files("data/german_election_programs", pattern = "\\.txt$", full.names = TRUE)
+ger_programs <- tibble(path = character(), text = character())
+
+for (i in seq_along(files)) {
+ text <- paste(readLines(files[i], warn = FALSE, encoding = "latin1"), collapse = "\n")
+ path <- files[i]  
+ ger_programs %<>% 
+   bind_rows(tibble(path = path, text = text))
+}
+
+ger_programs %<>% 
+  mutate(
+    party = case_when(
+      str_detect(path, "NPD")  ~ "NPD",
+      str_detect(path, "AfD")  ~ "AfD",
+      str_detect(path, "CDU")  ~ "CDU-CSU",
+      str_detect(path, "SPD")  ~ "SPD",
+      str_detect(path, "Grüne")  ~ "Grüne",
+      str_detect(path, "Linke")  ~ "Linke",
+      str_detect(path, "FDP")  ~ "FDP"
+    ),
+    date = case_when(
+      str_detect(path, "2002")  ~ ymd("2002-09-22"),
+      str_detect(path, "2005")  ~ ymd("2005-09-18"),
+      str_detect(path, "2009")  ~ ymd("2009-09-27"),
+      str_detect(path, "2013")  ~ ymd("2013-09-22"),
+      str_detect(path, "2017")  ~ ymd("2017-09-24"),
+      str_detect(path, "2021")  ~ ymd("2021-09-26"),
+      str_detect(path, "2025")  ~ ymd("2025-02-23")
+    ),
+    text = str_remove_all(text, "\\*") %>%
+    str_replace_all("\r\n", "\n") %>%
+    str_replace_all("(?<!\n)\n(?!\n)", " ") %>% 
+    str_replace_all("\n{2,}", "\n\n") %>%        
+    str_squish()
+  )
+
+ger_programs %<>%
+  mutate(
+    text_id = paste0("ection_programs_", lubridate::year(date), "_", party), #data.table overwrites year function, to resolve
+    author_id = party,
+    date = date,
+    text_length = str_length(text),
+    party = party
+  ) %>%
+  select(text_id, text, author_id, date, text_length, party) 
+
+
+#split into sentences
+docs_gen <- en_md$pipe(ger_programs$text)
+
+docs <- iterate(docs_gen)
+
+ger_programs_sentences <- map2_dfr(
+  ger_programs$text_id,
+  docs,
+  \(id, doc) {
+    sents <- iterate(doc$sents)
+    tibble(
+      text_id     = id,
+      sentence_id = seq_along(sents),
+      sentence    = map_chr(sents, \(s) s$text)
+    )
+  }
+)
+
+ger_programs_sentences %<>%
+  mutate(
+    sentence_length = str_length(sentence)
+  )
+
+#add context (+/- 1 sentence)
+ger_programs_sentences %<>% 
+  group_by(text_id) %>%
+  mutate(
+    context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
+      str_remove_all("^NA|NA$")
+  ) %>%
+  ungroup() 
+
+#join with speech data
+ger_programs_sentences %<>% 
+  left_join(ger_programs) 
+
+#remove objects from environment
+rm(docs)
+rm(docs_gen)
+rm(ger_programs)
+
+#write to file 
+saveRDS(ger_programs_sentences, "data/german_election_programs/ger_programs_sentences.rds")
+
+###load pre-processed files ----
+ger_programs_sentences <- readRDS("data/german_election_programs/ger_programs_sentences.rds")
