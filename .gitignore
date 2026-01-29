@@ -67,3 +67,6 @@ rsconnect/
 
 #
 *.pkl
+
+#
+*.docx

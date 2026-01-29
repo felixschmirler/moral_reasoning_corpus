@@ -10,8 +10,6 @@ library(legislatoR) #to retrieve information about the political affiliation of 
 #library(rvest) #for scraping UK parliament data 2019-2022 paused for now
 library(data.table)
 
-
-
 #python setup
 library(reticulate) #to work with python libraries
 use_condaenv("nlp_env", required = TRUE) #use specific conda environment with spacy, sentence BERT etc.
