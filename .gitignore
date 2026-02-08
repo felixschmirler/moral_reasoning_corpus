@@ -70,3 +70,6 @@ rsconnect/
 
 #
 *.docx
+
+#
+*.xlsx
