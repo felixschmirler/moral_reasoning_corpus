@@ -6936,6 +6936,9 @@ sentences_conseq_main %<>%
     )
   )
 
+sentences_conseq_main %>%
+  count(topic)
+
 #write to file
 saveRDS(sentences_conseq_main, "content/sentences_conseq_main.rds")
 
@@ -6961,4 +6964,5 @@ rm(sentences_conseq_t0_en, sentences_conseq_t0_ger,
 #####read consequentialis sentences from file ----
 sentences_conseq_main <- readRDS("content/sentences_conseq_main.rds")
 
-
+sentences_main <- rbind(sentences_conseq_main, sentences_deont_main)
+write_excel_csv(sentences_main, "content/sentences_main.csv")

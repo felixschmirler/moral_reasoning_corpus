@@ -6,6 +6,7 @@
 #load R packages
 library(tidyverse) #for general data wrangling
 library(magrittr) #just for the %<>% operator out of laziness
+library(irr) #Krippendorff's alpha
 
 #python setup
 library(reticulate) #to work with python libraries
@@ -49,7 +50,7 @@ dict_conseq_seed <- c("consequences", "outcomes",  "benefits", "costs")
 
 ###2.1. Load Pre-study Sentences ----
 
-#load files generated with gpt-4.1 via the open AI api 
+#load sentences generated with gpt-4.1 via the open AI api 
 #deontology
 sentences_deont_pre <- readLines("content/test_sentences_deont.txt") 
 sentences_deont_pre %<>% 
@@ -108,17 +109,19 @@ dict_conseq_full_ddr <- apply(dict_conseq_full_embed, 2, mean)
 #pre study sentences
 sentences_deont_pre_embed <- sbert_multiling$encode(sentences_deont_pre)
 sentences_deont_pre_ddr <- apply(sentences_deont_pre_embed, 2, mean)
+saveRDS(sentences_deont_pre_ddr, "content/sentences_deont_pre_ddr.rds")
 
 sentences_conseq_pre_embed <- sbert_multiling$encode(sentences_conseq_pre)
 sentences_conseq_pre_ddr <- apply(sentences_conseq_pre_embed, 2, mean)
+saveRDS(sentences_conseq_pre_ddr, "content/sentences_conseq_pre_ddr.rds")
 
 #main study sentences
 sentences_deont_main_embed <- sbert_multiling$encode(sentences_deont_main$text)
 sentences_deont_main_ddr <- apply(sentences_deont_main_embed, 2, mean)
 
 #write to file
-saveRDS(sentences_deont_main_ddr, "content/sentences_deont_main_ddr_rds")
-sentences_deont_main_ddr <- readRDS("content/sentences_deont_main_ddr_rds")
+saveRDS(sentences_deont_main_ddr, "content/sentences_deont_main_ddr.rds")
+sentences_deont_main_ddr <- readRDS("content/sentences_deont_main_ddr.rds")
 
 sentences_conseq_main_embed <- sbert_multiling$encode(sentences_conseq_main$text)
 sentences_conseq_main_ddr <- apply(sentences_conseq_main_embed, 2, mean)
@@ -326,7 +329,7 @@ sentences_t16_ddr <- apply(sentences_t16_embed, 2, mean)
 
 #4. Explore cosine similarity  ----
 
-#Teitelbaum & Simchon (2025)
+#Cosine Similarity - Teitelbaum & Simchon (2025)
 cos_sim <- function(x, y){  
   dot <- x %*% y  
   normx <- sqrt(sum(x^2))  
@@ -623,12 +626,7 @@ pre_study %>%
   group_by(multiclass_label) %>%
   summarise(av_conseq = mean(dict_conseq_seed))
 
-#write to file
-saveRDS(pre_study, "content/pre_study_ddr.rds")
-write_csv(pre_study, "content/pre_study_ddr.csv")
 
-#read file
-pre_study <- readRDS("content/pre_study_ddr.rds")
 
 ##5.3. point-biserial correlations ----
 
@@ -653,27 +651,160 @@ cor(pre_study$neutral_majority, pre_study$sent_conseq_pre, method = "pearson") #
 cor(pre_study$neutral_majority, pre_study$sent_deont_main, method = "pearson") #-0.6644662
 cor(pre_study$neutral_majority, pre_study$sent_deont_pre, method = "pearson") #-0.6452136
 
-##5.3. Precision, Recall, F1-Score exploratory based on .6 cosine similarity cut-off ----
+###5.3.1. MCC ----
+cor(pre_study$deontology_majority, pre_study$deontology_cosim_main, method = "pearson") #0.5940144
+cor(pre_study$deontology_majority, pre_study$deontology_cosim_pre, method = "pearson") #0.6290625
+cor(pre_study$consequentialism_majority, pre_study$consequentialism_cosim_main, method = "pearson") #0.6248342
+cor(pre_study$consequentialism_majority, pre_study$consequentialism_cosim_pre, method = "pearson") #0.6222895
 
-pre_study %<>% filter(multiclass_label != "000")
+##5.4. Precision, Recall, F1-Score exploratory based on cosine similarity cut-off ----
 
-#create labels based on cosine_similarity
+#read file ----
+pre_study <- readRDS("content/pre_study_ddr.rds") 
+
+#logistic regression for cut-off points
+
+#deont main
+model_deont_main <- glm(deontology_majority ~ sent_deont_main,
+                        data = pre_study,
+                        family = binomial(link = "logit"))
+
+summary(model_deont_main)
+
+b0 <- coef(model_deont_main)[1]
+b1 <- coef(model_deont_main)[2]
+
+p <- 0.8
+cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
+cutoff_x_08
+
+#deont pre
+model_deont_pre <- glm(deontology_majority ~ sent_deont_pre,
+                        data = pre_study,
+                        family = binomial(link = "logit"))
+
+summary(model_deont_pre)
+
+b0 <- coef(model_deont_pre)[1]
+b1 <- coef(model_deont_pre)[2]
+
+p <- 0.8
+cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
+cutoff_x_08
+
+#plot for slide
+ggplot(pre_study, aes(sent_deont_pre, deontology_majority)) +
+  geom_point(size = 4, alpha = 0.2) +
+  stat_smooth(method = "glm",
+              method.args = list(family = "binomial"),
+              se = FALSE,
+              colour = "blue",
+              
+              linewidth = 1.2) +
+  labs(
+    x = "Cosine similarity to rule-based examples",
+    y = "Probability that a sentence is rule-based"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y = element_text(margin = margin(r = 15)),
+    axis.title.x = element_text(margin = margin(t = 15))
+  ) +
+  geom_vline(xintercept = cutoff_x,
+             colour = "red",
+             linewidth = 1) +
+  annotate("text",
+           x = cutoff_x,
+           y = 0.55,
+           label = paste0("   p = .5 at x = ",
+                          round(cutoff_x, 2)),
+           colour = "red",
+           hjust = -0.1) + 
+  ggtitle("Classification of rule-based sentences")
+
+#conseq main
+model_conseq_main <- glm(consequentialism_majority ~ sent_conseq_main,
+                        data = pre_study,
+                        family = binomial(link = "logit"))
+
+summary(model_conseq_main)
+
+b0 <- coef(model_conseq_main)[1]
+b1 <- coef(model_conseq_main)[2]
+
+p <- 0.8
+cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
+cutoff_x_08
+
+#conseq pre
+model_conseq_pre <- glm(consequentialism_majority ~ sent_conseq_pre,
+                       data = pre_study,
+                       family = binomial(link = "logit"))
+
+summary(model_conseq_pre)
+
+b0 <- coef(model_conseq_pre)[1]
+b1 <- coef(model_conseq_pre)[2]
+
+p <- 0.8
+cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
+cutoff_x_08
+
+#plot for slide
+ggplot(pre_study, aes(sent_conseq_pre, consequentialism_majority)) +
+  geom_point(size = 4, alpha = 0.2) +
+  stat_smooth(method = "glm",
+              method.args = list(family = "binomial"),
+              se = FALSE,
+              colour = "blue",
+              
+              linewidth = 1.2) +
+  labs(
+    x = "Cosine similarity to outcome-based examples",
+    y = "Probability that a sentence is outcome-based"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y = element_text(margin = margin(r = 15)),
+    axis.title.x = element_text(margin = margin(t = 15))
+  ) +
+  geom_vline(xintercept = cutoff_x,
+             colour = "red",
+             linewidth = 1) +
+  annotate("text",
+           x = cutoff_x,
+           y = 0.55,
+           label = paste0("   p = .5 at x = ",
+                          round(cutoff_x, 2)),
+           colour = "red",
+           hjust = -0.1) + 
+  ggtitle("Classification of outcome-based sentences")
+
+#create labels based on cosine_similarity cut-offs
 pre_study %<>%
   mutate(
-    deontology_cosim_main = if_else(sent_deont_main > sent_conseq_main &
-                                      sent_deont_main > 0.6,
+    deontology_cosim_main = if_else(#sent_deont_main > sent_conseq_main &
+                                      sent_deont_main > 0.6108675, #logistic regression p = 0.5 
                                     1, 0),
-    deontology_cosim_pre = if_else(sent_deont_pre > sent_conseq_pre &
-                                     sent_deont_pre > 0.6,
+    deontology_cosim_pre = if_else(#sent_deont_pre > sent_conseq_pre &
+                                     sent_deont_pre > 0.6238497, #logistic regression p = 0.5                                               ,
                                    1, 0),
-    consequentialism_cosim_main = if_else(sent_conseq_main > sent_deont_main &
-                                            sent_conseq_main > 0.50,
+    consequentialism_cosim_main = if_else(#sent_conseq_main > sent_deont_main &
+                                            sent_conseq_main > 0.539263, #logistic regression p = 0.5
                                           1, 0),
-    consequentialism_cosim_pre = if_else(sent_conseq_pre > sent_deont_pre &
-                                           sent_conseq_pre > 0.50,
+    consequentialism_cosim_pre = if_else(#sent_conseq_pre > sent_deont_pre &
+                                           sent_conseq_pre > 0.5555583, #logistic regression p = 0.5
                                          1, 0),
     
   )
+
+#write to file
+saveRDS(pre_study, "content/pre_study_ddr.rds")
+write_excel_csv(pre_study, "content/pre_study_ddr.csv")
+
+#read file ----
+pre_study <- readRDS("content/pre_study_ddr.rds") 
+
 
 #deontology 
 
@@ -730,4 +861,25 @@ f1_c_p        <- 2 * precision_c_p * recall_c_p / (precision_c_p + recall_c_p)
 precision_c_p 
 recall_c_p    
 f1_c_p    
+
+##5.5. Interrater Reliability - Krippendorff's alpha ----
+x <- pre_study %>%
+  select(deontology_majority, deontology_cosim_pre)
+
+# force atomic matrix (handles many tibble/list-column weirdness cases)
+xm <- data.matrix(x)
+
+xm <- t(xm)
+
+kripp.alpha(xm, method = "nominal")
+
+x <- pre_study %>%
+  select(consequentialism_majority, consequentialism_cosim_pre)
+
+# force atomic matrix (handles many tibble/list-column weirdness cases)
+xm <- data.matrix(x)
+
+xm <- t(xm)
+
+kripp.alpha(xm, method = "nominal")
 

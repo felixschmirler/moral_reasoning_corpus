@@ -76,15 +76,15 @@ uscongress_pre2016 %<>%
   filter(chamber.x == "H")
 
 
-#rename and reduce number of variables
 uscongress_pre2016 %<>% 
   mutate(
     text_id = paste0("uscongress_pre2016_", speech_id),
     author_id = paste0(speakerid, "_", firstname, "_", last_name),
     date = ymd(date),
-    text_length = str_length(speech)
+    text = str_replace_all(speech, "\\.\\s+([a-z])", " \\1") %>% str_squish(),
+    text_length = str_length(text)
   ) %>%
-  select(text_id, text = speech, author_id, date, text_length, party)
+  select(text_id, text, author_id, date, text_length, party)
 
 #filter out speeches without information about the politician, the party, pre 2000 and duplicates
 uscongress_pre2016 %<>% 
@@ -97,20 +97,10 @@ uscongress_pre2016 %<>%
 uscongress_pre2016 %<>% 
   filter(text_id != "uscongress_pre2016_1140100957") #speech is so long it breaks the script
 
-uscongress_pre2016 %>%
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 15000))
-
-quantile(uscongress_pre2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
-
-#filter out top 10% and bottom 10%
-#uscongress_pre2016 %<>% filter(text_length > 218, text_length <= 7195)
-
 #split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
 
 #test badge
-uscongress_pre2016 <- uscongress_pre2016[350001:402379,] #change manually depending on what badge you want to run
+uscongress_pre2016 <- uscongress_pre2016[100001:401746,] #401746 change manually depending on what badge you want to run
 
 docs_gen <- en_md$pipe(uscongress_pre2016$text)
 
@@ -153,6 +143,6 @@ rm(docs_gen)
 rm(uscongress_pre2016)
 
 #write to file 
-saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_400k.rds")
+saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_400k_c.rds")
 
 

@@ -49,9 +49,10 @@ open_discourse %<>%
     text_id = paste0("opendiscourse_", id),
     author_id = paste0(politician_id, "_", first_name, "_", last_name),
     date = ymd(date),
+    text = str_remove_all(speech_content, "\\(\\{\\d+\\}\\)") %>% str_squish(), #remove reactions and line breaks in speeches
     text_length = str_length(speech_content)
   ) %>%
-  select(text_id, text = speech_content, author_id, date, text_length, party = abbreviation) #variables temporarily kept for filtering
+  select(text_id, text, author_id, date, text_length, party = abbreviation) #variables temporarily kept for filtering
 
 #filter out speeches without information about the politician, the party, pre 2000 and duplicates
 open_discourse %<>% 
@@ -60,44 +61,21 @@ open_discourse %<>%
   filter(date >= as_date("2000-01-01")) %>% 
   distinct(text, .keep_all = TRUE)
 
-#remove reactions and line breaks in speeches
-open_discourse %<>% 
-  mutate(
-    text = str_remove_all(text, "\\(\\{\\d+\\}\\)"),
-    text = str_squish(text)
-  ) 
+#write to file 
+saveRDS(open_discourse, "data/german_bundestag/open_discourse_corpus/1_open_discourse_raw.rds")
 
-####To do: filter out very long and very short speeches ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-open_discourse %>%
-  filter(
-    text_length >= 200,
-    text_length <= quantile(text_length, 0.99)
-  ) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(open_discourse$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
-
-#filter out 1% of the longest speeches and speeches with less than 300 characters
-#open_discourse %<>% filter(text_length > 218, text_length <= 7195)
-
-#split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
+# split into sentences - takes hours, run as a background jobs in badges 
+# background_opendiscourse_sentencesplitting.R  script
 
 #test badge
-open_discourse <- open_discourse[1:1000,] #change manually depending on what badge you want to run
+open_discourse_test <- open_discourse[1:1000,] #change manually depending on what badge you want to run
 
-docs_gen <- ger_md$pipe(open_discourse$text)
+docs_gen <- ger_md$pipe(open_discourse_test$text)
 
 docs <- iterate(docs_gen)
 
-open_discourse_sentences <- map2_dfr(
-  open_discourse$text_id,
+open_discourse_test_sentences <- map2_dfr(
+  open_discourse_test$text_id,
   docs,
   \(id, doc) {
     sents <- iterate(doc$sents)
@@ -109,13 +87,13 @@ open_discourse_sentences <- map2_dfr(
   }
 )
 
-open_discourse_sentences %<>%
+open_discourse_test_sentences %<>%
   mutate(
     sentence_length = str_length(sentence)
   )
 
 #add context (+/- 1 sentence)
-open_discourse_sentences %<>% 
+open_discourse_test_sentences %<>% 
   group_by(text_id) %>%
   mutate(
     context = paste(lag(sentence, 1), sentence, lead(sentence, 1)) %>% 
@@ -124,50 +102,50 @@ open_discourse_sentences %<>%
   ungroup() 
 
 #join with speech data
-open_discourse_sentences %<>% 
-  left_join(open_discourse) 
+open_discourse_test_sentences %<>% 
+  left_join(open_discourse_test) 
 
 #remove objects from environment
 rm(docs)
 rm(docs_gen)
-rm(open_discourse)
+rm(open_discourse_test)
 
 #write to file 
-saveRDS(open_discourse_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
+saveRDS(open_discourse_test_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
 
 ####load pre-processed files ----
-open_discourse_sentences_test <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
+#open_discourse_sentences_test <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_test.rds")
 
-open_discourse_sentences_30 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_1_30k.rds")
-open_discourse_sentences_60 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_30k_60k.rds")
-open_discourse_sentences_90 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_60k_90k.rds")
-open_discourse_sentences_135 <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_90k_135k.rds")
-
-open_discourse_sentences <- bind_rows(open_discourse_sentences_30, 
-                                      open_discourse_sentences_60,
-                                      open_discourse_sentences_90,
-                                      open_discourse_sentences_135)
+open_discourse_sentences <- bind_rows(readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_40k_b.rds"),
+                                      readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences_135k_b.rds")
+)
 
 saveRDS(open_discourse_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences.rds")
 
-rm(open_discourse_sentences_30)
-rm(open_discourse_sentences_60)
-rm(open_discourse_sentences_90)
-rm(open_discourse_sentences_135)
-
 open_discourse_sentences <- readRDS("data/german_bundestag/open_discourse_corpus/open_discourse_sentences.rds")
 
-####To do: filter out very long and very short sentences ----
+#filter out very long and very short speeches 
+open_discourse_sentences %>%
+  distinct(text_id, .keep_all = TRUE) %>% 
+  #  filter(
+  #    text_length > 100,
+  #    text_length <= quantile(text_length, 0.99)
+  #  ) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 10000))
 
 open_discourse_sentences %>%
-  ggplot(aes(sentence_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 500))
+  distinct(text_id, .keep_all = TRUE) %>% 
+  pull(text_length) %>%
+  quantile(c(0, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 
+             0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 0.99, 1))
 
-quantile(open_discourse_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
+#filter out 1% longest speeches and speeches with less than 100 characters (~5%)
+open_discourse_sentences_s <- open_discourse_sentences %>% filter(text_length > 100, text_length < 12050) 
 
-#filter out top 10% and bottom 10%
-#open_discourse_sentences %<>% filter(sentence_length > 28, sentence_length <= 196)
+#save shorter version
+saveRDS(open_discourse_sentences_s, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences_s.rds")
 
 ##1.2. US Congress ----
 
@@ -233,9 +211,12 @@ uscongress_pre2016 %<>%
     text_id = paste0("uscongress_pre2016_", speech_id),
     author_id = paste0(speakerid, "_", firstname, "_", last_name),
     date = ymd(date),
-    text_length = str_length(speech)
+    text = str_replace_all(speech, "\\.\\s+([a-z])", " \\1") %>% str_squish(),
+    text_length = str_length(text)
   ) %>%
-  select(text_id, text = speech, author_id, date, text_length, party)
+  select(text_id, text, author_id, date, text_length, party)
+
+#uscongress_pre2016 %>% filter(text_id == "uscongress_pre2016_1070090022") %>% pull(text) %>% str_replace_all("\\.\\s+([a-z])", " \\1")
 
 #filter out speeches without information about the politician, the party, pre 2000 and duplicates
 uscongress_pre2016 %<>% 
@@ -244,28 +225,18 @@ uscongress_pre2016 %<>%
   filter(date >= as_date("2000-01-01")) %>% 
   distinct(text, .keep_all = TRUE)
 
-####To do: filter out very long and very short speeches ----
-uscongress_pre2016 %<>% 
-  filter(text_id != "uscongress_pre2016_1140100957") #speech is so long it breaks the script
-
-uscongress_pre2016 %>%
-  filter(
-    text_length >= 200,
-    text_length <= quantile(text_length, 0.99)
-  )  %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 500))
-
-quantile(uscongress_pre2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
-
-#filter out top 10% and bottom 10%
-#uscongress_pre2016 %<>% filter(text_length > 218, text_length <= 7195)
-
+uscongress_pre2016 %>% 
+  filter(text_id == "uscongress_pre2016_1080182805")
+  
 #split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
 
 #test badge
-uscongress_pre2016 <- uscongress_pre2016[1:1000,] #change manually depending on what badge you want to run
+uscongress_pre2016 <- uscongress_pre2016 %>% 
+  filter(text_id == "uscongress_pre2016_1080182805" | 
+         text_id == "uscongress_pre2016_1090077611" |
+         text_id == "uscongress_pre2016_1070007729" |
+         text_id == "uscongress_pre2016_1090177178" |
+         text_id == "uscongress_pre2016_1090041224") #[1:10,] #change manually depending on what badge you want to run
 
 docs_gen <- en_md$pipe(uscongress_pre2016$text)
 
@@ -311,37 +282,14 @@ rm(uscongress_pre2016)
 saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_test.rds")
 
 ####load pre-processed files ----
-uscongress_pre2016_sentences_test <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_test.rds")
+uscongress_pre2016_sentences_c <- bind_rows(
+  readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_100k_c.rds"),
+  readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_400k_c.rds")
+                                          )
 
-uscongress_pre2016_sentences_50 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_50k.rds")
-uscongress_pre2016_sentences_150 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_150k.rds")
-uscongress_pre2016_sentences_250 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_250k.rds")
-uscongress_pre2016_sentences_350 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_350k.rds")
-uscongress_pre2016_sentences_400 <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_400k.rds")
+saveRDS(uscongress_pre2016_sentences_c, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_c.rds")
 
-uscongress_pre2016_sentences <- bind_rows(uscongress_pre2016_sentences_50, 
-                                          uscongress_pre2016_sentences_150,
-                                          uscongress_pre2016_sentences_250,
-                                          uscongress_pre2016_sentences_350,
-                                          uscongress_pre2016_sentences_400)
-
-saveRDS(uscongress_pre2016_sentences, "data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
-
-rm(uscongress_pre2016_sentences_50)
-rm(uscongress_pre2016_sentences_150)
-rm(uscongress_pre2016_sentences_250)
-rm(uscongress_pre2016_sentences_350)
-rm(uscongress_pre2016_sentences_400)
-
-uscongress_pre2016_sentences <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
-
-####To do: filter out very long and very short sentences ----
-uscongress_pre2016_sentences %>%
-  ggplot(aes(sentence_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 500))
-
-quantile(uscongress_pre2016_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
+uscongress_pre2016_sentences_c <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_c.rds")
 
 ###1.2.2. US Congress post 2016 - Judd et al ----
 
@@ -579,38 +527,22 @@ uscongress_post2016_raw %<>%
   filter(chamber == "House") 
 
 #rename and reduce number of variables
-uscongress_post2016 <- uscongress_post2016_raw %>% 
+uscongress_post2016_b <- uscongress_post2016_raw %>% 
   mutate(
     text_id = paste0("uscongress_post2016_", str_extract(file, "(?<=json/).*(?=.json)"), "_", turn),
     author_id = speaker_bioguide,
     date = ymd(paste(year, month, day)),
-    text = str_remove(text, paste0(speaker, ".."))  %>% str_trim(),
+    text = str_remove(text, paste0(speaker, ".."))  %>% str_squish(),
     text_length = str_length(text)
   ) %>%
   select(text_id, text, author_id, date, text_length, party)
 
-
 #filter out speeches without information about the politician, the party, pre 2000 and duplicates
-uscongress_post2016 %<>% 
+uscongress_post2016_b %<>% 
   filter(!is.na(author_id)) %>%
   filter(party == "D" | party == "R") %>% 
   filter(date >= as_date("2000-01-01")) %>% 
   distinct(text, .keep_all = TRUE)
-
-###To do: filter out very long and very short speeches ----
-uscongress_post2016 %>%
-  filter(
-    !text_length >= 300,
-    text_length <= quantile(text_length, 0.99)
-  ) %>% view()
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(uscongress_post2016$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
-
-#filter out top 10% and bottom 10%
-#uscongress_post2016 %<>% filter(text_length > 218, text_length <= 7195)
 
 #split into sentences - takes hours, run as a background jobs in badges (e.g. 20 min for 10k on a regular institutioanal Laptop from 2024)  
 
@@ -662,38 +594,17 @@ rm(uscongress_post2016)
 saveRDS(uscongress_post2016_sentences, "data/us_congress/judd_post2016/uscongress_post2016_sentences_test.rds")
 
 ###load pre-processed files ----
-uscongress_post2016_sentences_test <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_test.rds")
-
-uscongress_post2016_sentences_100 <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_100k.rds")
-uscongress_post2016_sentences_120 <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_120k.rds")
-
-uscongress_post2016_sentences <- bind_rows(uscongress_post2016_sentences_100, 
-                                      uscongress_post2016_sentences_120)
-
-saveRDS(uscongress_post2016_sentences, "data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
-
-rm(uscongress_post2016_sentences_100)
-rm(uscongress_post2016_sentences_120)
-
-uscongress_post2016_sentences <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
-
-###To do: filter out very long and very short sentences ----
-uscongress_pre2016_sentences %>%
-  ggplot(aes(sentence_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 500))
-
-quantile(uscongress_pre2016_sentences$sentence_length, c(0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 1))
+uscongress_post2016_sentences_b <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_120k_b.rds")
 
 ###1.2.3. US Congress combined ----
 
-uscongress_pre2016_sentences <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences.rds")
-uscongress_post2016_sentences <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences.rds")
+uscongress_pre2016_sentences_c <- readRDS("data/us_congress/gentzkow_pre2016/uscongress_pre2016_sentences_c.rds")
+uscongress_post2016_sentences_b <- readRDS("data/us_congress/judd_post2016/uscongress_post2016_sentences_120k_b.rds")
 
-uscongress_combined_sentences <- bind_rows(uscongress_pre2016_sentences, 
-                                           uscongress_post2016_sentences)
+uscongress_combined_sentences_c <- bind_rows(uscongress_pre2016_sentences_c, 
+                                           uscongress_post2016_sentences_b)
 
-uscongress_combined_sentences %>% 
+uscongress_combined_sentences_c %>% 
   mutate(
     year = year(date)
   ) %>% 
@@ -702,10 +613,35 @@ uscongress_combined_sentences %>%
 rm(uscongress_pre2016_sentences)
 rm(uscongress_post2016_sentences)
 
-saveRDS(uscongress_combined_sentences, "data/us_congress/uscongress_sentences.rds")
+saveRDS(uscongress_combined_sentences_c, "data/us_congress/uscongress_sentences_c.rds")
 
 ####load pre-processed file ----
-uscongress_combined_sentences <- readRDS("data/us_congress/uscongress_sentences.rds")
+uscongress_combined_sentences_b <- readRDS("data/us_congress/uscongress_sentences_b.rds")
+
+#filter out very long and very short speeches 
+uscongress_combined_sentences_b %>%
+  distinct(text_id, .keep_all = TRUE) %>% 
+  #  filter(
+  #    text_length > 100,
+  #    text_length <= quantile(text_length, 0.99)
+  #  ) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 10000))
+
+uscongress_combined_sentences_b %>%
+  distinct(text_id, .keep_all = TRUE) %>% 
+  pull(text_length) %>%
+  quantile(c(0, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 
+             0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 0.99, 1))
+
+#filter out 1% longest speeches and speeches with less than 100 characters (~10%)
+uscongress_combined_sentences_b_s <- uscongress_combined_sentences_b %>% filter(text_length > 100, text_length < 9601) 
+
+saveRDS(uscongress_combined_sentences_b_s, "data/us_congress/uscongress_sentences_b_s.rds")
+
+####load pre-processed file ----
+uscongress_combined_sentences_s_b <- readRDS("data/us_congress/uscongress_sentences_b_s.rds")
 
 ##1.3. UK Parliament ----
 
@@ -729,23 +665,6 @@ parlspeech_uk %<>%
   filter(date >= as_date("2000-01-01")) %>% 
   distinct(text, .keep_all = TRUE)
 
-
-####To do: filter out very long and very short speeches ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-parlspeech_uk %>%
-  filter(
-    text_length >= 100,
-    text_length <= quantile(text_length, 0.99)
-  ) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(parlspeech_uk$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #test badge
 parlspeech_uk <- parlspeech_uk[1:1000,] #change manually depending on what badge you want to run
@@ -819,7 +738,30 @@ rm(parlspeech_uk_sentences_1m)
 
 parlspeech_uk_sentences <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
 
-###1.3.2. Data from theyworkforyou.com ####
+#filter out very long and very short speeches 
+parlspeech_uk_sentences %>%
+  distinct(text_id, .keep_all = TRUE) %>% 
+  #  filter(
+  #    text_length > 100,
+  #    text_length <= quantile(text_length, 0.99)
+  #  ) %>% 
+  ggplot(aes(text_length)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 10000))
+
+parlspeech_uk_sentences %>%
+  distinct(text_id, .keep_all = TRUE) %>% 
+  pull(text_length) %>%
+  quantile(c(0, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 
+             0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 0.99, 1))
+
+#filter out 1% longest speeches and speeches with less than 100 characters (~5%)
+parlspeech_uk_sentences_s <- parlspeech_uk_sentences %>% filter(text_length > 100, text_length < 9541) 
+
+#save shorter version
+saveRDS(parlspeech_uk_sentences_s, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_s.rds")
+
+###1.3.2. Data from theyworkforyou.com  (abondoned for now ----
 
 #get list of parliament records for missing time window
 url <- "https://www.theyworkforyou.com/pwdata/scrapedxml/debates/"  
@@ -875,23 +817,6 @@ mft_reddit %<>%
 #filter out duplicates
 mft_reddit %<>% 
   distinct(text, .keep_all = TRUE) 
-
-####To do: filter out very long and very short posts ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-mft_reddit %>%
-  #filter(
-  #  text_length >= 100,
-  #  text_length <= quantile(text_length, 0.99)
-  #) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(mft_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #test badge
 #mft_reddit <- mft_reddit[1:1000,] #change manually depending on what badge you want to run
@@ -962,23 +887,6 @@ mft_twitter %<>%
 #filter out duplicates
 mft_twitter %<>% 
   distinct(text, .keep_all = TRUE) 
-
-####To do: filter out very long and very short posts ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-mft_twitter %>%
-  #filter(
-  #  text_length >= 100,
-  #  text_length <= quantile(text_length, 0.99)
-  #) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(mft_twitter$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #test badge
 #mft_twitter <- mft_twitter[1:1000,] #change manually depending on what badge you want to run
@@ -1358,23 +1266,6 @@ saveRDS(emfd_news, "data/emfd_news/emfd_news.rds")
 
 ###load pre-processed file ----
 emfd_news <- readRDS("data/emfd_news/emfd_news.rds")
-
-####To do: filter out very long and very short posts ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-emfd_news %>%
-  #filter(
-  #  text_length >= 100,
-  #  text_length <= quantile(text_length, 0.99)
-  #) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 10000))
-
-quantile(mft_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #split into sentences
 docs_gen <- en_md$pipe(emfd_news$text)

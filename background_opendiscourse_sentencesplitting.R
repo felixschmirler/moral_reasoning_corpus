@@ -18,52 +18,12 @@ en_md <- spacy$load("en_core_web_md") #mostly to split english speeches into sen
 
 #1. Data ----
 ##1.1. Open Discourse Corpus - Richter et al - Richter et al. - 2023 - Open Discourse Corpus ####
-
-#contributions_extended <- readRDS("open_discourse_corpus/RDS/contributions_extended.RDS") #initially not relevant
-#contributions_simplified <- readRDS("open_discourse_corpus/RDS/contributions_simplified.RDS") #initially not relevant
-#electoral_terms <- readRDS("open_discourse_corpus/RDS/electoral_terms.RDS") #initially not relevant
-factions <- readRDS("data/open_discourse_corpus/RDS/factions.RDS") 
-politicians <- readRDS("data/open_discourse_corpus/RDS/politicians.RDS") 
-speeches <- readRDS("data/open_discourse_corpus/RDS/speeches.RDS")
-
-#join open discourse datasets
-open_discourse <- speeches %>%
-  left_join(politicians, join_by(politician_id == id)) %>%
-  left_join(factions, join_by(faction_id == id))
-
-#remove individual datasets
-rm(factions)
-rm(politicians)
-rm(speeches)
-
-#rename and reduce number of variables
-open_discourse %<>% 
-  mutate(
-    text_id = paste0("opendiscourse_", id),
-    author_id = paste0(politician_id, "_", first_name, "_", last_name),
-    date = ymd(date),
-    text_length = str_length(speech_content)
-  ) %>%
-  select(text_id, text = speech_content, author_id, date, text_length, party = abbreviation) #variables temporarily kept for filtering
-
-#filter out speeches without information about the politician, the party, pre 2000 and duplicates
-open_discourse %<>% 
-  filter(author_id != "-1_Not found_") %>%
-  filter(party != "not found", party != "Fraktionslos") %>% #also removes ministers and chancellors due to missing party affiliation in the protocols
-  filter(date >= as_date("2000-01-01")) %>% 
-  distinct(text, .keep_all = TRUE)
-
-#remove reactions and line breaks in speeches
-open_discourse %<>% 
-  mutate(
-    text = str_remove_all(text, "\\(\\{\\d+\\}\\)"),
-    text = str_squish(text)
-  ) 
+open_discourse <- readRDS("data/german_bundestag/open_discourse_corpus/1_open_discourse_raw.rds")
 
 #split into sentences - takes many hours, run as a background jobs in badges (e.g. 20 min for 10k on a normal laptop)  
 
 #test badge
-open_discourse <- open_discourse[90001:135357,] #change manually depending on what badge you want to run
+open_discourse <- open_discourse[40001:134910,] # 134910 max, change manually depending on what badge you want to run
 
 docs_gen <- ger_md$pipe(open_discourse$text)
 
@@ -106,5 +66,5 @@ rm(docs_gen)
 rm(open_discourse)
 
 #write to file 
-saveRDS(open_discourse_sentences, "data/open_discourse_corpus/open_discourse_sentences_90k_135k.rds")
+saveRDS(open_discourse_sentences, "data/german_bundestag/open_discourse_corpus/open_discourse_sentences_135k_b.rds")
 
