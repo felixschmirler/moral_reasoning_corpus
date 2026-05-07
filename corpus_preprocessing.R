@@ -610,16 +610,16 @@ uscongress_combined_sentences_c %>%
   ) %>% 
   count(year) %>% view()
 
-rm(uscongress_pre2016_sentences)
-rm(uscongress_post2016_sentences)
+rm(uscongress_pre2016_sentences_c)
+rm(uscongress_post2016_sentences_b)
 
 saveRDS(uscongress_combined_sentences_c, "data/us_congress/uscongress_sentences_c.rds")
 
 ####load pre-processed file ----
-uscongress_combined_sentences_b <- readRDS("data/us_congress/uscongress_sentences_b.rds")
+uscongress_combined_sentences_c <- readRDS("data/us_congress/uscongress_sentences_c.rds")
 
 #filter out very long and very short speeches 
-uscongress_combined_sentences_b %>%
+uscongress_combined_sentences_c %>%
   distinct(text_id, .keep_all = TRUE) %>% 
   #  filter(
   #    text_length > 100,
@@ -629,19 +629,19 @@ uscongress_combined_sentences_b %>%
   geom_histogram(binwidth = 10) +
   coord_cartesian(xlim = c(0, 10000))
 
-uscongress_combined_sentences_b %>%
+uscongress_combined_sentences_c %>%
   distinct(text_id, .keep_all = TRUE) %>% 
   pull(text_length) %>%
   quantile(c(0, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 
              0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 0.99, 1))
 
 #filter out 1% longest speeches and speeches with less than 100 characters (~10%)
-uscongress_combined_sentences_b_s <- uscongress_combined_sentences_b %>% filter(text_length > 100, text_length < 9601) 
+uscongress_combined_sentences_c_s <- uscongress_combined_sentences_c %>% filter(text_length > 100, text_length < 9601) 
 
-saveRDS(uscongress_combined_sentences_b_s, "data/us_congress/uscongress_sentences_b_s.rds")
+saveRDS(uscongress_combined_sentences_c_s, "data/us_congress/uscongress_sentences_c_s.rds")
 
 ####load pre-processed file ----
-uscongress_combined_sentences_s_b <- readRDS("data/us_congress/uscongress_sentences_b_s.rds")
+uscongress_combined_sentences_c_s <- readRDS("data/us_congress/uscongress_sentences_c_s.rds")
 
 ##1.3. UK Parliament ----
 
