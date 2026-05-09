@@ -713,28 +713,15 @@ rm(parlspeech_uk)
 saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
 
 ###load pre-processed files ----
-parlspeech_uk_sentences_test <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
+#parlspeech_uk_sentences_test <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
 
-parlspeech_uk_sentences_50 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_50k.rds")
-parlspeech_uk_sentences_250 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_250k.rds")
-parlspeech_uk_sentences_500 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_500k.rds")
-parlspeech_uk_sentences_750 <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_750k.rds")
-parlspeech_uk_sentences_1m <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m.rds")
-
-
-parlspeech_uk_sentences <- bind_rows(parlspeech_uk_sentences_50, 
-                                    parlspeech_uk_sentences_250, 
-                                    parlspeech_uk_sentences_500, 
-                                    parlspeech_uk_sentences_750, 
-                                    parlspeech_uk_sentences_1m)
+parlspeech_uk_sentences <- bind_rows(readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_50k.rds"), 
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_250k.rds"), 
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_500k.rds"), 
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_750k.rds"), 
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m.rds"))
 
 saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
-
-rm(parlspeech_uk_sentences_50)
-rm(parlspeech_uk_sentences_250)
-rm(parlspeech_uk_sentences_500)
-rm(parlspeech_uk_sentences_750)
-rm(parlspeech_uk_sentences_1m)
 
 parlspeech_uk_sentences <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
 
