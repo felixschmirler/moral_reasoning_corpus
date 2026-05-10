@@ -28,6 +28,7 @@ parlspeech_uk %<>%
     text_id = paste0("uk_parlspeech_", date, "_", speechnumber),
     author_id = paste0(speaker),
     date = ymd(date),
+    text = str_replace_all(text, "hon.|Hon.", "honourable") %>% str_squish(),
     text_length = str_length(text)
   ) %>%
   select(text_id, text, author_id, date, text_length, party) 
@@ -58,7 +59,7 @@ parlspeech_uk %>%
 quantile(parlspeech_uk$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #test badge
-parlspeech_uk <- parlspeech_uk[750001:1055250,] #change manually depending on what badge you want to run
+parlspeech_uk <- parlspeech_uk[1:500000,] # 1055249 max change manually depending on what badge you want to run
 
 docs_gen <- en_md$pipe(parlspeech_uk$text)
 

@@ -654,6 +654,7 @@ parlspeech_uk %<>%
     text_id = paste0("uk_parlspeech_", date, "_", speechnumber),
     author_id = paste0(speaker),
     date = ymd(date),
+    text = str_replace_all(text, "hon.|Hon.", "honourable") %>% str_squish(),
     text_length = str_length(text)
   ) %>%
   select(text_id, text, author_id, date, text_length, party) 
