@@ -25,10 +25,10 @@ sbert_multiling <- st("paraphrase-multilingual-mpnet-base-v2") # multilingual mo
 uscongress_combined_sentences_s <- readRDS("data/us_congress/uscongress_sentences_c_s.rds")
 
 #subset data due to processing time 
-uscongress_combined_sentences_s <- uscongress_combined_sentences_s[3000001:5000000,] #6952383
+uscongress_combined_sentences_s <- uscongress_combined_sentences_s[6000001:6952383,] #6952383
 
 #embeddings
 uscongress_combined_embed <- sbert_multiling$encode(uscongress_combined_sentences_s$sentence)
 
 #save output
-saveRDS(uscongress_combined_embed, "data/us_congress/uscongress_combined_embed_5m_c.rds")
+saveRDS(uscongress_combined_embed, "data/us_congress/uscongress_combined_embed_7m_c.rds")

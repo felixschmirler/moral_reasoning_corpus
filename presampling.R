@@ -130,27 +130,62 @@ write_excel_csv(open_discourse_sample, "corpus/open_discourse_sample.csv")
 us_congress_sentences_s <- readRDS("data/us_congress/uscongress_sentences_c_s.rds")
 
 #embeddings
-us_congress_embed <- readRDS("data/us_congress/uscongress_combined_embed.rds")
+us_congress_embed1 <- rbind(
+  readRDS("data/us_congress/uscongress_combined_embed_1m_c.rds"),
+  readRDS("data/us_congress/uscongress_combined_embed_2m_c.rds"),
+  readRDS("data/us_congress/uscongress_combined_embed_3m_c.rds")
+)
+
+us_congress_embed2 <- rbind(
+  readRDS("data/us_congress/uscongress_combined_embed_5m_c.rds"),
+  readRDS("data/us_congress/uscongress_combined_embed_6m_c.rds"),
+  readRDS("data/us_congress/uscongress_combined_embed_7m_c.rds")
+)
+
+#split sentences due to size of embeddings
+
+us_congress_sentences_s_1 <- us_congress_sentences_s[1:nrow(us_congress_embed1),]
+us_congress_sentences_s_2 <- us_congress_sentences_s[(nrow(us_congress_embed1)+1):nrow(us_congress_sentences_s),]
 
 #cosine similiarity to deontology sentences main
-cosim_sent_deont_main <- apply(us_congress_embed, 1, cos_sim, sentences_deont_main_ddr)
-us_congress_sentences_s$sent_deont_main <- cosim_sent_deont_main
-rm(cosim_sent_deont_main)
+cosim_sent_deont_main1 <- apply(us_congress_embed1, 1, cos_sim, sentences_deont_main_ddr)
+us_congress_sentences_s_1$sent_deont_main <- cosim_sent_deont_main1
+rm(cosim_sent_deont_main1)
+
+cosim_sent_deont_main2 <- apply(us_congress_embed2, 1, cos_sim, sentences_deont_main_ddr)
+us_congress_sentences_s_2$sent_deont_main <- cosim_sent_deont_main2
+rm(cosim_sent_deont_main2)
 
 #cosine similiarity to deontology sentences pre
-cosim_sent_deont_pre <- apply(us_congress_embed, 1, cos_sim, sentences_deont_pre_ddr)
-us_congress_sentences_s$sent_deont_pre <- cosim_sent_deont_pre
-rm(cosim_sent_deont_pre)
+cosim_sent_deont_pre1 <- apply(us_congress_embed1, 1, cos_sim, sentences_deont_pre_ddr)
+us_congress_sentences_s_1$sent_deont_pre <- cosim_sent_deont_pre1
+rm(cosim_sent_deont_pre1)
+
+cosim_sent_deont_pre2 <- apply(us_congress_embed2, 1, cos_sim, sentences_deont_pre_ddr)
+us_congress_sentences_s_2$sent_deont_pre <- cosim_sent_deont_pre2
+rm(cosim_sent_deont_pre2)
 
 #cosine similiarity to consequentialism sentences main
-cosim_sent_conseq_main <- apply(us_congress_embed, 1, cos_sim, sentences_conseq_main_ddr)
-us_congress_sentences_s$sent_conseq_main <- cosim_sent_conseq_main
-rm(cosim_sent_conseq_main)
+cosim_sent_conseq_main1 <- apply(us_congress_embed1, 1, cos_sim, sentences_conseq_main_ddr)
+us_congress_sentences_s_1$sent_conseq_main <- cosim_sent_conseq_main1
+rm(cosim_sent_conseq_main1)
+
+cosim_sent_conseq_main2 <- apply(us_congress_embed2, 1, cos_sim, sentences_conseq_main_ddr)
+us_congress_sentences_s_2$sent_conseq_main <- cosim_sent_conseq_main2
+rm(cosim_sent_conseq_main2)
 
 #cosine similiarity to consequentialism sentences pre
-cosim_sent_conseq_pre <- apply(us_congress_embed, 1, cos_sim, sentences_conseq_pre_ddr)
-us_congress_sentences_s$sent_conseq_pre <- cosim_sent_conseq_pre
-rm(cosim_sent_conseq_pre)
+cosim_sent_conseq_pre1 <- apply(us_congress_embed1, 1, cos_sim, sentences_conseq_pre_ddr)
+us_congress_sentences_s_1$sent_conseq_pre <- cosim_sent_conseq_pre1
+rm(cosim_sent_conseq_pre1)
+
+cosim_sent_conseq_pre2 <- apply(us_congress_embed2, 1, cos_sim, sentences_conseq_pre_ddr)
+us_congress_sentences_s_2$sent_conseq_pre <- cosim_sent_conseq_pre2
+rm(cosim_sent_conseq_pre2)
+
+#combine dataset again
+us_congress_sentences_s <- rbind(us_congress_sentences_s_1, us_congress_sentences_s_2)
+rm(us_congress_sentences_s_1, us_congress_sentences_s_2, us_congress_embed1, us_congress_embed2)
 
 #create score ranks
 us_congress_sentences_s %<>%
@@ -190,7 +225,7 @@ deont_sample <- us_congress_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_deont_main > .73) %>% # ~ 7k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_deont_main > .73) %>%  # ~ 1k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600) %>%
   mutate(sample = "rule-based")
 
@@ -199,7 +234,7 @@ conseq_sample <- us_congress_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .64) %>% # ~33k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_conseq_main > .64) %>% # ~10k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600)%>%
   mutate(sample = "outcome-based")
 
@@ -219,8 +254,6 @@ us_congress_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
 
 saveRDS(us_congress_sample, "corpus/us_congress_sample.rds")
 write_excel_csv(us_congress_sample, "corpus/us_congress_sample.csv")
-
-rm(deont_sample, conseq_sample, notarget_sample)
 
 ##2.3. ParlSpeech V2 (UK Parliament) - Rauh & Schwalbach, 2020 ----
 
