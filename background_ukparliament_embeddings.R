@@ -23,10 +23,10 @@ sbert_multiling <- st("paraphrase-multilingual-mpnet-base-v2") # multilingual mo
 parlspeech_uk_sentences_s <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_s.rds")
 
 #subset data due to processing time 
-parlspeech_uk_sentences_s <- parlspeech_uk_sentences_s[8000001:9076402,] #9076402 max
+parlspeech_uk_sentences_s <- parlspeech_uk_sentences_s[2000001:3000000,] #9076402 max
 
 #embeddings
 parlspeech_uk_embed <- sbert_multiling$encode(parlspeech_uk_sentences_s$sentence)
 
 #save output
-saveRDS(parlspeech_uk_embed, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_9m.rds")
+saveRDS(parlspeech_uk_embed, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_3m.rds")

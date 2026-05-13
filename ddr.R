@@ -676,7 +676,7 @@ b1 <- coef(model_deont_main)[2]
 
 p <- 0.8
 cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
-cutoff_x_08
+cutoff_x_08 # 0.7145314
 
 #deont pre
 model_deont_pre <- glm(deontology_majority ~ sent_deont_pre,
@@ -690,7 +690,7 @@ b1 <- coef(model_deont_pre)[2]
 
 p <- 0.8
 cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
-cutoff_x_08
+cutoff_x_08 # 0.7299026 
 
 #plot for slide
 ggplot(pre_study, aes(sent_deont_pre, deontology_majority)) +
@@ -734,7 +734,7 @@ b1 <- coef(model_conseq_main)[2]
 
 p <- 0.8
 cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
-cutoff_x_08
+cutoff_x_08 # 0.623824 
 
 #conseq pre
 model_conseq_pre <- glm(consequentialism_majority ~ sent_conseq_pre,
@@ -748,7 +748,7 @@ b1 <- coef(model_conseq_pre)[2]
 
 p <- 0.8
 cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
-cutoff_x_08
+cutoff_x_08 # 0.636774 
 
 #plot for slide
 ggplot(pre_study, aes(sent_conseq_pre, consequentialism_majority)) +

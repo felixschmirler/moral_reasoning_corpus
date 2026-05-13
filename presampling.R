@@ -72,7 +72,7 @@ open_discourse_sentences_s_ddr <- readRDS("data/german_bundestag/open_discourse_
 
 #explore distributions
 open_discourse_sentences_s_ddr %>%
-  ggplot(aes(sent_conseq_main)) +
+  ggplot(aes(sent_deont_main)) +
   geom_histogram()
 
 open_discourse_sentences_s_ddr %>% summary()
@@ -93,7 +93,7 @@ deont_sample <- open_discourse_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_deont_main > .73) %>% # ~ 7k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_deont_main > .71) %>% # ~ 14k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600) %>%
   mutate(sample = "rule-based")
 
@@ -102,8 +102,8 @@ conseq_sample <- open_discourse_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .64) %>% # ~33k sentences, threshold based on p = .8 from logistic regression model in pilot study
-  slice_sample(n = 600)%>%
+  filter(sent_conseq_main > .62) %>% # ~58k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  slice_sample(n = 600) %>%
   mutate(sample = "outcome-based")
 
 #no target
@@ -225,7 +225,7 @@ deont_sample <- us_congress_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_deont_main > .73) %>%  # ~ 1k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_deont_main > .71) %>% # ~ 1.8k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600) %>%
   mutate(sample = "rule-based")
 
@@ -234,7 +234,7 @@ conseq_sample <- us_congress_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .64) %>% # ~10k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_conseq_main > .62) %>% # ~16k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600)%>%
   mutate(sample = "outcome-based")
 
@@ -330,9 +330,9 @@ uk_parliament_sentences_s %<>%
   arrange(-sent_conseq_pre) %>%
   mutate(conseq_pre_rank = row_number()) 
 
-saveRDS(uk_parliament_sentences_s, "data/uk_parliament/uk_parliament_sentences_s_ddr.rds")
+saveRDS(uk_parliament_sentences_s, "data/uk_parliament/uk_parlspeechv2/uk_parliament_sentences_s_ddr.rds")
 
-uk_parliament_sentences_s_ddr <- readRDS("data/uk_parliament/uk_parliament_sentences_s_ddr.rds")
+uk_parliament_sentences_s_ddr <- readRDS("data/uk_parliament/uk_parlspeechv2/uk_parliament_sentences_s_ddr.rds")
 
 #explore distributions
 uk_parliament_sentences_s_ddr %>%
