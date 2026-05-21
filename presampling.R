@@ -262,16 +262,17 @@ uk_parliament_sentences_s <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspe
 
 #embeddings
 uk_parliament_embed1 <- rbind(
+  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_1m.rds"),
+  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_2m.rds"),
   readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_3m.rds"),
-  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_4m.rds"),
-  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_5m.rds")
+  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_4m.rds")
 )
 
 uk_parliament_embed2 <- rbind(
+  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_5m.rds"),
   readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_6m.rds"),
   readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_7m.rds"),
-  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_8m.rds"),
-  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_9m.rds")
+  readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_embed_8m.rds")
 )
 
 #split sentences due to size of embeddings
@@ -357,7 +358,7 @@ deont_sample <- uk_parliament_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_deont_main > .73) %>%  # ~ 1k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_deont_main > .71) %>% # ~ 2.5k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600) %>%
   mutate(sample = "rule-based")
 
@@ -366,7 +367,7 @@ conseq_sample <- uk_parliament_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .64) %>% # ~10k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_conseq_main > .61) %>% # ~33k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600)%>%
   mutate(sample = "outcome-based")
 

@@ -716,11 +716,9 @@ saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_
 ###load pre-processed files ----
 #parlspeech_uk_sentences_test <- readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_test.rds")
 
-parlspeech_uk_sentences <- bind_rows(readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_50k.rds"), 
-                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_250k.rds"), 
-                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_500k.rds"), 
-                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_750k.rds"), 
-                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m.rds"))
+parlspeech_uk_sentences <- bind_rows(readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_300k_b.rds"), 
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_600k_b.rds"),
+                                     readRDS("data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_1m_b.rds"))
 
 saveRDS(parlspeech_uk_sentences, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences.rds")
 
@@ -735,7 +733,7 @@ parlspeech_uk_sentences %>%
   #  ) %>% 
   ggplot(aes(text_length)) +
   geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 10000))
+  coord_cartesian(xlim = c(0, 1000))
 
 parlspeech_uk_sentences %>%
   distinct(text_id, .keep_all = TRUE) %>% 
@@ -744,7 +742,7 @@ parlspeech_uk_sentences %>%
              0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 0.99, 1))
 
 #filter out 1% longest speeches and speeches with less than 100 characters (~5%)
-parlspeech_uk_sentences_s <- parlspeech_uk_sentences %>% filter(text_length > 100, text_length < 9541) 
+parlspeech_uk_sentences_s <- parlspeech_uk_sentences %>% filter(text_length > 100, text_length < 9585) 
 
 #save shorter version
 saveRDS(parlspeech_uk_sentences_s, "data/uk_parliament/uk_parlspeechv2/parlspeech_uk_sentences_s.rds")
