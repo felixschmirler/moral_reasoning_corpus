@@ -351,7 +351,7 @@ cor(uk_parliament_sentences_s_ddr$sent_conseq_main, uk_parliament_sentences_s_dd
 cor(uk_parliament_sentences_s_ddr$sent_deont_pre, uk_parliament_sentences_s_ddr$sent_deont_main)
 
 #sample
-set.seed(187)
+set.seed(178)
 
 #deontological
 deont_sample <- uk_parliament_sentences_s_ddr %>%
@@ -387,3 +387,403 @@ uk_parliament_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
 
 saveRDS(uk_parliament_sample, "corpus/uk_parliament_sample.rds")
 write_excel_csv(uk_parliament_sample, "corpus/uk_parliament_sample.csv")
+
+##2.4. MFT Reddit Corpus - Trager et al., 2022 ----
+
+#load data
+mft_reddit_sentences <- readRDS("data/mft_reddit_corpus/mft_reddit_sentences.rds")
+
+#embeddings
+mft_reddit_embed <- readRDS("data/mft_reddit_corpus/mft_reddit_embed.rds")
+
+#cosine similiarity to deontology sentences main
+cosim_sent_deont_main <- apply(mft_reddit_embed, 1, cos_sim, sentences_deont_main_ddr)
+mft_reddit_sentences$sent_deont_main <- cosim_sent_deont_main
+rm(cosim_sent_deont_main)
+
+#cosine similiarity to deontology sentences pre
+cosim_sent_deont_pre <- apply(mft_reddit_embed, 1, cos_sim, sentences_deont_pre_ddr)
+mft_reddit_sentences$sent_deont_pre <- cosim_sent_deont_pre
+rm(cosim_sent_deont_pre)
+
+#cosine similiarity to consequentialism sentences main
+cosim_sent_conseq_main <- apply(mft_reddit_embed, 1, cos_sim, sentences_conseq_main_ddr)
+mft_reddit_sentences$sent_conseq_main <- cosim_sent_conseq_main
+rm(cosim_sent_conseq_main)
+
+#cosine similiarity to consequentialism sentences pre
+cosim_sent_conseq_pre <- apply(mft_reddit_embed, 1, cos_sim, sentences_conseq_pre_ddr)
+mft_reddit_sentences$sent_conseq_pre <- cosim_sent_conseq_pre
+rm(cosim_sent_conseq_pre)
+
+#create score ranks
+mft_reddit_sentences %<>%
+  arrange(-sent_deont_main) %>%
+  mutate(deont_main_rank = row_number()) %>%
+  arrange(-sent_deont_pre) %>%
+  mutate(deont_pre_rank = row_number()) %>%
+  arrange(-sent_conseq_main) %>%
+  mutate(conseq_main_rank = row_number()) %>%
+  arrange(-sent_conseq_pre) %>%
+  mutate(conseq_pre_rank = row_number()) 
+
+saveRDS(mft_reddit_sentences, "data/mft_reddit_corpus/mft_reddit_sentences_ddr.rds")
+
+mft_reddit_sentences_ddr <- readRDS("data/mft_reddit_corpus/mft_reddit_sentences_ddr.rds")
+
+#explore distributions
+mft_reddit_sentences_ddr %>%
+  ggplot(aes(sent_deont_main)) +
+  geom_histogram()
+
+mft_reddit_sentences_ddr %>% summary()
+
+mft_reddit_sentences_ddr %>% 
+  summarise(
+    quantiles = quantile(sent_deont_main, c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1))
+  )
+
+cor(mft_reddit_sentences_ddr$sent_conseq_main, mft_reddit_sentences_ddr$sent_deont_main)
+cor(mft_reddit_sentences_ddr$sent_deont_pre, mft_reddit_sentences_ddr$sent_deont_main)
+
+#sample
+set.seed(187)
+
+#deontological
+deont_sample <- mft_reddit_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_deont_main > .71) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_deont_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "rule-based")
+
+#consequentialist
+conseq_sample <- mft_reddit_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_conseq_main > .62) %>% #only 20 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_conseq_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "outcome-based")
+
+#no target
+notarget_sample <- mft_reddit_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  slice_sample(n = 322) %>%
+  mutate(sample = "no target")
+
+#combine
+mft_reddit_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
+  mutate(
+    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+  )%>%
+  distinct(sentence, .keep_all = TRUE) 
+
+saveRDS(mft_reddit_sample, "corpus/mft_reddit_sample.rds")
+write_excel_csv(mft_reddit_sample, "corpus/mft_reddit_sample.csv")
+
+##2.5. MFT Twitter Corpus - Hoover et al., 2020 ----
+
+#load data
+mft_twitter_sentences <- readRDS("data/mft_twitter_corpus/mft_twitter_sentences.rds")
+
+#embeddings
+mft_twitter_embed <- readRDS("data/mft_twitter_corpus/mft_twitter_embed.rds")
+
+#cosine similiarity to deontology sentences main
+cosim_sent_deont_main <- apply(mft_twitter_embed, 1, cos_sim, sentences_deont_main_ddr)
+mft_twitter_sentences$sent_deont_main <- cosim_sent_deont_main
+rm(cosim_sent_deont_main)
+
+#cosine similiarity to deontology sentences pre
+cosim_sent_deont_pre <- apply(mft_twitter_embed, 1, cos_sim, sentences_deont_pre_ddr)
+mft_twitter_sentences$sent_deont_pre <- cosim_sent_deont_pre
+rm(cosim_sent_deont_pre)
+
+#cosine similiarity to consequentialism sentences main
+cosim_sent_conseq_main <- apply(mft_twitter_embed, 1, cos_sim, sentences_conseq_main_ddr)
+mft_twitter_sentences$sent_conseq_main <- cosim_sent_conseq_main
+rm(cosim_sent_conseq_main)
+
+#cosine similiarity to consequentialism sentences pre
+cosim_sent_conseq_pre <- apply(mft_twitter_embed, 1, cos_sim, sentences_conseq_pre_ddr)
+mft_twitter_sentences$sent_conseq_pre <- cosim_sent_conseq_pre
+rm(cosim_sent_conseq_pre)
+
+#create score ranks
+mft_twitter_sentences %<>%
+  arrange(-sent_deont_main) %>%
+  mutate(deont_main_rank = row_number()) %>%
+  arrange(-sent_deont_pre) %>%
+  mutate(deont_pre_rank = row_number()) %>%
+  arrange(-sent_conseq_main) %>%
+  mutate(conseq_main_rank = row_number()) %>%
+  arrange(-sent_conseq_pre) %>%
+  mutate(conseq_pre_rank = row_number()) 
+
+saveRDS(mft_twitter_sentences, "data/mft_twitter_corpus/mft_twitter_sentences_ddr.rds")
+
+mft_twitter_sentences_ddr <- readRDS("data/mft_twitter_corpus/mft_twitter_sentences_ddr.rds")
+
+#explore distributions
+mft_twitter_sentences_ddr %>%
+  ggplot(aes(sent_deont_main)) +
+  geom_histogram()
+
+mft_twitter_sentences_ddr %>% summary()
+
+mft_twitter_sentences_ddr %>% 
+  summarise(
+    quantiles = quantile(sent_deont_main, c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1))
+  )
+
+cor(mft_twitter_sentences_ddr$sent_conseq_main, mft_twitter_sentences_ddr$sent_deont_main)
+cor(mft_twitter_sentences_ddr$sent_deont_pre, mft_twitter_sentences_ddr$sent_deont_main)
+
+#sample
+set.seed(187)
+
+#deontological
+deont_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_deont_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "rule-based")
+
+#consequentialist
+conseq_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_conseq_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "outcome-based")
+
+#no target
+notarget_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  slice_sample(n = 301) %>%
+  mutate(sample = "no target")
+
+#combine
+mft_twitter_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
+  mutate(
+    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+  )%>%
+  distinct(sentence, .keep_all = TRUE) 
+
+saveRDS(mft_twitter_sample, "corpus/mft_twitter_sample.rds")
+write_excel_csv(mft_twitter_sample, "corpus/mft_twitter_sample.csv")
+
+##2.6. GeRedE German Reddit Corpus - Blombach et al. (2020) ----
+
+#load data
+gerede_politics_sentences <- readRDS("data/german_reddit_corpus/gerede_politics_sentences.rds")
+
+#embeddings
+gerede_politics_embed <- readRDS("data/german_reddit_corpus/gerede_politics_embed.rds")
+
+#cosine similiarity to deontology sentences main
+cosim_sent_deont_main <- apply(gerede_politics_embed, 1, cos_sim, sentences_deont_main_ddr)
+gerede_politics_sentences$sent_deont_main <- cosim_sent_deont_main
+rm(cosim_sent_deont_main)
+
+#cosine similiarity to deontology sentences pre
+cosim_sent_deont_pre <- apply(gerede_politics_embed, 1, cos_sim, sentences_deont_pre_ddr)
+gerede_politics_sentences$sent_deont_pre <- cosim_sent_deont_pre
+rm(cosim_sent_deont_pre)
+
+#cosine similiarity to consequentialism sentences main
+cosim_sent_conseq_main <- apply(gerede_politics_embed, 1, cos_sim, sentences_conseq_main_ddr)
+gerede_politics_sentences$sent_conseq_main <- cosim_sent_conseq_main
+rm(cosim_sent_conseq_main)
+
+#cosine similiarity to consequentialism sentences pre
+cosim_sent_conseq_pre <- apply(gerede_politics_embed, 1, cos_sim, sentences_conseq_pre_ddr)
+gerede_politics_sentences$sent_conseq_pre <- cosim_sent_conseq_pre
+rm(cosim_sent_conseq_pre)
+
+#create score ranks
+gerede_politics_sentences %<>%
+  arrange(-sent_deont_main) %>%
+  mutate(deont_main_rank = row_number()) %>%
+  arrange(-sent_deont_pre) %>%
+  mutate(deont_pre_rank = row_number()) %>%
+  arrange(-sent_conseq_main) %>%
+  mutate(conseq_main_rank = row_number()) %>%
+  arrange(-sent_conseq_pre) %>%
+  mutate(conseq_pre_rank = row_number()) 
+
+saveRDS(gerede_politics_sentences, "data/german_reddit_corpus/gerede_politics_sentences_ddr.rds")
+
+gerede_politics_sentences_ddr <- readRDS("data/german_reddit_corpus/gerede_politics_sentences_ddr.rds")
+
+#explore distributions
+gerede_politics_sentences_ddr %>%
+  ggplot(aes(sent_deont_main)) +
+  geom_histogram()
+
+gerede_politics_sentences_ddr %>% summary()
+
+gerede_politics_sentences_ddr %>% 
+  summarise(
+    quantiles = quantile(sent_deont_main, c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1))
+  )
+
+cor(gerede_politics_sentences_ddr$sent_conseq_main, gerede_politics_sentences_ddr$sent_deont_main)
+cor(gerede_politics_sentences_ddr$sent_deont_pre, gerede_politics_sentences_ddr$sent_deont_main)
+
+#sample
+set.seed(187)
+
+#deontological
+deont_sample <- gerede_politics_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_deont_main > .71) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_deont_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "rule-based")
+
+#consequentialist
+conseq_sample <- gerede_politics_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_conseq_main > .62) %>% #only 20 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_conseq_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "outcome-based")
+
+#no target
+notarget_sample <- gerede_politics_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  slice_sample(n = 322) %>%
+  mutate(sample = "no target")
+
+#combine
+gerede_politics_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
+  mutate(
+    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+  )%>%
+  distinct(sentence, .keep_all = TRUE) 
+
+saveRDS(gerede_politics_sample, "corpus/gerede_politics_sample.rds")
+write_excel_csv(gerede_politics_sample, "corpus/gerede_politics_sample.csv")
+
+##2.7. 1.7.eMFD - Hopp et al., 2021 ----
+
+#load data
+mft_twitter_sentences <- readRDS("data/mft_twitter_corpus/mft_twitter_sentences.rds")
+
+#embeddings
+mft_twitter_embed <- readRDS("data/mft_twitter_corpus/mft_twitter_embed.rds")
+
+#cosine similiarity to deontology sentences main
+cosim_sent_deont_main <- apply(mft_twitter_embed, 1, cos_sim, sentences_deont_main_ddr)
+mft_twitter_sentences$sent_deont_main <- cosim_sent_deont_main
+rm(cosim_sent_deont_main)
+
+#cosine similiarity to deontology sentences pre
+cosim_sent_deont_pre <- apply(mft_twitter_embed, 1, cos_sim, sentences_deont_pre_ddr)
+mft_twitter_sentences$sent_deont_pre <- cosim_sent_deont_pre
+rm(cosim_sent_deont_pre)
+
+#cosine similiarity to consequentialism sentences main
+cosim_sent_conseq_main <- apply(mft_twitter_embed, 1, cos_sim, sentences_conseq_main_ddr)
+mft_twitter_sentences$sent_conseq_main <- cosim_sent_conseq_main
+rm(cosim_sent_conseq_main)
+
+#cosine similiarity to consequentialism sentences pre
+cosim_sent_conseq_pre <- apply(mft_twitter_embed, 1, cos_sim, sentences_conseq_pre_ddr)
+mft_twitter_sentences$sent_conseq_pre <- cosim_sent_conseq_pre
+rm(cosim_sent_conseq_pre)
+
+#create score ranks
+mft_twitter_sentences %<>%
+  arrange(-sent_deont_main) %>%
+  mutate(deont_main_rank = row_number()) %>%
+  arrange(-sent_deont_pre) %>%
+  mutate(deont_pre_rank = row_number()) %>%
+  arrange(-sent_conseq_main) %>%
+  mutate(conseq_main_rank = row_number()) %>%
+  arrange(-sent_conseq_pre) %>%
+  mutate(conseq_pre_rank = row_number()) 
+
+saveRDS(mft_twitter_sentences, "data/mft_twitter_corpus/mft_twitter_sentences_ddr.rds")
+
+mft_twitter_sentences_ddr <- readRDS("data/mft_twitter_corpus/mft_twitter_sentences_ddr.rds")
+
+#explore distributions
+mft_twitter_sentences_ddr %>%
+  ggplot(aes(sent_deont_main)) +
+  geom_histogram()
+
+mft_twitter_sentences_ddr %>% summary()
+
+mft_twitter_sentences_ddr %>% 
+  summarise(
+    quantiles = quantile(sent_deont_main, c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1))
+  )
+
+cor(mft_twitter_sentences_ddr$sent_conseq_main, mft_twitter_sentences_ddr$sent_deont_main)
+cor(mft_twitter_sentences_ddr$sent_deont_pre, mft_twitter_sentences_ddr$sent_deont_main)
+
+#sample
+set.seed(187)
+
+#deontological
+deont_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_deont_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "rule-based")
+
+#consequentialist
+conseq_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_conseq_main) %>%
+  slice_head(n = 650) %>% 
+  mutate(sample = "outcome-based")
+
+#no target
+notarget_sample <- mft_twitter_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  slice_sample(n = 301) %>%
+  mutate(sample = "no target")
+
+#combine
+mft_twitter_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
+  mutate(
+    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+  )%>%
+  distinct(sentence, .keep_all = TRUE) 
+
+saveRDS(mft_twitter_sample, "corpus/mft_twitter_sample.rds")
+write_excel_csv(mft_twitter_sample, "corpus/mft_twitter_sample.csv")
