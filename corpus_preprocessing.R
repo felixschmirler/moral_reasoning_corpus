@@ -1344,6 +1344,7 @@ ger_programs %<>%
     text_id = paste0("ection_programs_", lubridate::year(date), "_", party), #data.table overwrites year function, to resolve
     author_id = party,
     date = date,
+    text = text %>% str_squish(),
     text_length = str_length(text),
     party = party
   ) %>%

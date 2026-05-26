@@ -783,3 +783,104 @@ emfd_news_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
 
 saveRDS(emfd_news_sample, "corpus/emfd_news_sample.rds")
 write_excel_csv(emfd_news_sample, "corpus/emfd_news_sample.csv")
+
+##2.8. German Election Programs (2002-2021) - Voit et al. 2024 ----
+
+#load data
+ger_programs_sentences <- readRDS("data/german_election_programs/ger_programs_sentences.rds")
+
+#embeddings
+ger_programs_embed <- readRDS("data/german_election_programs/ger_programs_embed.rds")
+
+#cosine similiarity to deontology sentences main
+cosim_sent_deont_main <- apply(ger_programs_embed, 1, cos_sim, sentences_deont_main_ddr)
+ger_programs_sentences$sent_deont_main <- cosim_sent_deont_main
+rm(cosim_sent_deont_main)
+
+#cosine similiarity to deontology sentences pre
+cosim_sent_deont_pre <- apply(ger_programs_embed, 1, cos_sim, sentences_deont_pre_ddr)
+ger_programs_sentences$sent_deont_pre <- cosim_sent_deont_pre
+rm(cosim_sent_deont_pre)
+
+#cosine similiarity to consequentialism sentences main
+cosim_sent_conseq_main <- apply(ger_programs_embed, 1, cos_sim, sentences_conseq_main_ddr)
+ger_programs_sentences$sent_conseq_main <- cosim_sent_conseq_main
+rm(cosim_sent_conseq_main)
+
+#cosine similiarity to consequentialism sentences pre
+cosim_sent_conseq_pre <- apply(ger_programs_embed, 1, cos_sim, sentences_conseq_pre_ddr)
+ger_programs_sentences$sent_conseq_pre <- cosim_sent_conseq_pre
+rm(cosim_sent_conseq_pre)
+
+#create score ranks
+ger_programs_sentences %<>%
+  arrange(-sent_deont_main) %>%
+  mutate(deont_main_rank = row_number()) %>%
+  arrange(-sent_deont_pre) %>%
+  mutate(deont_pre_rank = row_number()) %>%
+  arrange(-sent_conseq_main) %>%
+  mutate(conseq_main_rank = row_number()) %>%
+  arrange(-sent_conseq_pre) %>%
+  mutate(conseq_pre_rank = row_number()) 
+
+saveRDS(ger_programs_sentences, "data/german_election_programs/ger_programs_sentences_ddr.rds")
+
+ger_programs_sentences_ddr <- readRDS("data/german_election_programs/ger_programs_sentences_ddr.rds")
+
+#explore distributions
+ger_programs_sentences_ddr %>%
+  ggplot(aes(sent_deont_main)) +
+  geom_histogram()
+
+ger_programs_sentences_ddr %>% summary()
+
+ger_programs_sentences_ddr %>% 
+  summarise(
+    quantiles = quantile(sent_deont_main, c(0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1))
+  )
+
+cor(ger_programs_sentences_ddr$sent_conseq_main, ger_programs_sentences_ddr$sent_deont_main)
+cor(ger_programs_sentences_ddr$sent_deont_pre, ger_programs_sentences_ddr$sent_deont_main)
+
+#sample
+set.seed(069)
+
+#deontological
+deont_sample <- ger_programs_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  #filter(sent_deont_main > .71) %>% #only 400 sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_deont_main) %>%
+  slice_head(n = 620) %>% 
+  mutate(sample = "rule-based")
+
+#consequentialist
+conseq_sample <- ger_programs_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  filter(!str_detect(sentence, "\\?")) %>% 
+  filter(sent_conseq_main > .62) %>%  #2k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #slice_sample(n = 600) %>%
+  arrange(-sent_conseq_main) %>%
+  slice_head(n = 620) %>% 
+  mutate(sample = "outcome-based")
+
+#no target
+notarget_sample <- ger_programs_sentences_ddr %>%
+  filter(str_count(sentence, boundary("word")) > 3) %>% 
+  distinct(sentence, .keep_all = TRUE) %>%
+  slice_sample(n = 300) %>%
+  mutate(sample = "no target")
+
+#combine
+ger_programs_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
+  mutate(
+    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+  )%>%
+  distinct(sentence, .keep_all = TRUE) 
+
+saveRDS(ger_programs_sample, "corpus/ger_programs_sample.rds")
+write_excel_csv(ger_programs_sample, "corpus/ger_programs_sample.csv")
+
