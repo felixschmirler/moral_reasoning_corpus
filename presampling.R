@@ -457,7 +457,7 @@ deont_sample <- mft_reddit_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 650) %>% 
+  slice_head(n = 665) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -468,14 +468,14 @@ conseq_sample <- mft_reddit_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 20 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 650) %>% 
+  slice_head(n = 665) %>% 
   mutate(sample = "outcome-based")
 
 #no target
 notarget_sample <- mft_reddit_sentences_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
-  slice_sample(n = 322) %>%
+  slice_sample(n = 300) %>%
   mutate(sample = "no target")
 
 #combine
@@ -557,7 +557,7 @@ deont_sample <- mft_twitter_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 650) %>% 
+  slice_head(n = 651) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -568,14 +568,14 @@ conseq_sample <- mft_twitter_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 650) %>% 
+  slice_head(n = 651) %>% 
   mutate(sample = "outcome-based")
 
 #no target
 notarget_sample <- mft_twitter_sentences_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
-  slice_sample(n = 301) %>%
+  slice_sample(n = 300) %>%
   mutate(sample = "no target")
 
 #combine
@@ -663,7 +663,7 @@ conseq_sample <- gerede_politics_sentences_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .62) %>% # only 45k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_conseq_main > .62) %>% # 45k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600) %>%
   mutate(sample = "outcome-based")
 
@@ -743,7 +743,7 @@ cor(emfd_news_sentences_ddr$sent_conseq_main, emfd_news_sentences_ddr$sent_deont
 cor(emfd_news_sentences_ddr$sent_deont_pre, emfd_news_sentences_ddr$sent_deont_main)
 
 #sample
-set.seed(069)
+set.seed(187)
 
 #deontological
 deont_sample <- emfd_news_sentences_ddr %>%
@@ -753,7 +753,7 @@ deont_sample <- emfd_news_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 620) %>% 
+  slice_head(n = 619) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -764,7 +764,7 @@ conseq_sample <- emfd_news_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 620) %>% 
+  slice_head(n = 619) %>% 
   mutate(sample = "outcome-based")
 
 #no target
@@ -843,7 +843,7 @@ cor(ger_programs_sentences_ddr$sent_conseq_main, ger_programs_sentences_ddr$sent
 cor(ger_programs_sentences_ddr$sent_deont_pre, ger_programs_sentences_ddr$sent_deont_main)
 
 #sample
-set.seed(069)
+set.seed(187)
 
 #deontological
 deont_sample <- ger_programs_sentences_ddr %>%
@@ -853,7 +853,7 @@ deont_sample <- ger_programs_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 400 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 620) %>% 
+  slice_head(n = 610) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -861,10 +861,10 @@ conseq_sample <- ger_programs_sentences_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .62) %>%  #2k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  #filter(sent_conseq_main > .62) %>%  #2k sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 620) %>% 
+  slice_head(n = 610) %>% 
   mutate(sample = "outcome-based")
 
 #no target
