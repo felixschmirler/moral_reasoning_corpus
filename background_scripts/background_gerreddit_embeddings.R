@@ -28,4 +28,4 @@ gerede_politics_sentences <- readRDS("data/german_reddit_corpus/gerede_politics_
 gerede_politics_embed <- sbert_multiling$encode(gerede_politics_sentences$sentence)
 
 #save output
-saveRDS(gerede_politics_embed, "data/mft_twitter_corpus/gerede_politics_embed.rds")
+saveRDS(gerede_politics_embed, "data/german_reddit_corpus/gerede_politics_embed.rds")

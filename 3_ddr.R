@@ -688,7 +688,7 @@ summary(model_deont_pre)
 b0 <- coef(model_deont_pre)[1]
 b1 <- coef(model_deont_pre)[2]
 
-p <- 0.8
+p <- 0.5
 cutoff_x_08 <- (log(p / (1 - p)) - b0) / b1
 cutoff_x_08 # 0.7299026 
 

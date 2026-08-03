@@ -654,7 +654,7 @@ parlspeech_uk %<>%
     text_id = paste0("uk_parlspeech_", date, "_", speechnumber),
     author_id = paste0(speaker),
     date = ymd(date),
-    text = str_replace_all(text, "hon.|Hon.", "honourable") %>% str_squish(),
+    text = str_replace_all(text, "hon\\.|Hon\\.", "honourable") %>% str_squish(),
     text_length = str_length(text)
   ) %>%
   select(text_id, text, author_id, date, text_length, party) 
@@ -794,6 +794,7 @@ mft_reddit %<>%
     text_id = paste0("mft_reddit_", subreddit, "_", bucket, "_", row_number()),
     author_id = NA_character_,
     date = NA_Date_,
+    text = text %>% str_remove_all("&gt;") %>% str_squish(),
     text_length = str_length(text),
     party = NA_character_
   ) %>%
@@ -864,10 +865,11 @@ mft_twitter %<>%
     text_id = paste0("mft_twitter_", Corpus, "_", tweet_id),
     author_id = NA_character_,
     date = NA_Date_,
+    text = tweet_text %>% str_squish(),
     text_length = str_length(tweet_text),
     party = NA_character_
   ) %>%
-  select(text_id, text = tweet_text, author_id, date, text_length, party) 
+  select(text_id, text, author_id, date, text_length, party) 
 
 
 #filter out duplicates
@@ -1112,11 +1114,11 @@ gerede_politics_comments %<>%
     text_id = paste0("gerede_reddit_", id),
     author_id = author,
     date = as_datetime(as.numeric(created_utc), tz = "UTC"),
-    text_length = str_length(body),
+    text = body %>% str_remove_all("&gt;") %>% str_squish(),
+    text_length = str_length(text),
     party = NA_character_
   ) %>%
-  select(text_id, text = body, author_id, date, text_length, party) 
-
+  select(text_id, text, author_id, date, text_length, party) 
 
 
 #write to file 
@@ -1126,23 +1128,6 @@ rm(gerede_politics_df)
 
 ###load pre-processed file 
 gerede_politics_comments <- readRDS("data/german_reddit_corpus/gerede_politics_comments.rds")
-
-####To do: filter out very long and very short posts ----
-
-#lower limit examples
-#11 tokens in Aroyehun et al. 2025 - fairly inclusive
-#500 words Bachmann & Gleibs 2024 - more conservative
-
-gerede_politics_comments %>%
-  #filter(
-  #  text_length >= 100,
-  #  text_length <= quantile(text_length, 0.99)
-  #) %>% 
-  ggplot(aes(text_length)) +
-  geom_histogram(binwidth = 10) +
-  coord_cartesian(xlim = c(0, 1000))
-
-quantile(gerede_reddit$text_length, c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.65, 0.75, 0.8, 0.9, 0.95, 1))
 
 #sentence splitting - run as background job in separate script
 docs_gen <- en_md$pipe(gerede_politics_comments$text)
@@ -1241,11 +1226,13 @@ emfd_news %<>%
     text_id = paste0("emfd_", url),
     author_id = source,
     date = date,
+    text = text %>% str_squish(),
     text_length = str_length(text),
     party = NA_character_
   ) %>%
   select(text_id, text, author_id, date, text_length, party) 
 
+emfd_news %<>% distinct() #for some reason 5 duplicates
 
 #write to file 
 saveRDS(emfd_news, "data/emfd_news/emfd_news.rds")
@@ -1297,10 +1284,7 @@ rm(emfd_news)
 #write to file 
 saveRDS(emfd_news_sentences, "data/emfd_news/emfd_news_sentences.rds")
 
-###load pre-processed files ----
-emfd_news_sentences <- readRDS("data/emfd_news/emfd_news_sentences.rds")
-
-##1.8.German Election Programs (2002-2021) - Voit et al. 2024 ####
+###1.8 german election programs ----
 
 files <- list.files("data/german_election_programs", pattern = "\\.txt$", full.names = TRUE)
 ger_programs <- tibble(path = character(), text = character())
@@ -1341,7 +1325,7 @@ ger_programs %<>%
 
 ger_programs %<>%
   mutate(
-    text_id = paste0("ection_programs_", lubridate::year(date), "_", party), #data.table overwrites year function, to resolve
+    text_id = paste0("election_programs_", lubridate::year(date), "_", party), #data.table overwrites year function, to resolve
     author_id = party,
     date = date,
     text = text %>% str_squish(),

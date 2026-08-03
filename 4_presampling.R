@@ -116,13 +116,14 @@ notarget_sample <- open_discourse_sentences_s_ddr %>%
 #combine
 open_discourse_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(open_discourse_sample, "corpus/open_discourse_sample.rds")
 write_excel_csv(open_discourse_sample, "corpus/open_discourse_sample.csv")
-
+readRDs(open_discourse_sample, "corpus/open_discourse_sample.rds")
 
 ##2.2. US Congress (pre 2016 - Gentzkow et al; post 2016 - Judd et al) ----
 
@@ -248,9 +249,10 @@ notarget_sample <- us_congress_sentences_s_ddr %>%
 #combine
 us_congress_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(us_congress_sample, "corpus/us_congress_sample.rds")
 write_excel_csv(us_congress_sample, "corpus/us_congress_sample.csv")
@@ -367,7 +369,7 @@ conseq_sample <- uk_parliament_sentences_s_ddr %>%
   filter(str_count(sentence, boundary("word")) > 3) %>% 
   distinct(sentence, .keep_all = TRUE) %>%
   filter(!str_detect(sentence, "\\?")) %>% 
-  filter(sent_conseq_main > .61) %>% # ~33k sentences, threshold based on p = .8 from logistic regression model in pilot study
+  filter(sent_conseq_main > .62) %>% # ~33k sentences, threshold based on p = .8 from logistic regression model in pilot study
   slice_sample(n = 600)%>%
   mutate(sample = "outcome-based")
 
@@ -381,9 +383,10 @@ notarget_sample <- uk_parliament_sentences_s_ddr %>%
 #combine
 uk_parliament_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(uk_parliament_sample, "corpus/uk_parliament_sample.rds")
 write_excel_csv(uk_parliament_sample, "corpus/uk_parliament_sample.csv")
@@ -457,7 +460,7 @@ deont_sample <- mft_reddit_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 665) %>% 
+  slice_head(n = 663) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -468,7 +471,7 @@ conseq_sample <- mft_reddit_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 20 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 665) %>% 
+  slice_head(n = 663) %>% 
   mutate(sample = "outcome-based")
 
 #no target
@@ -481,9 +484,10 @@ notarget_sample <- mft_reddit_sentences_ddr %>%
 #combine
 mft_reddit_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(mft_reddit_sample, "corpus/mft_reddit_sample.rds")
 write_excel_csv(mft_reddit_sample, "corpus/mft_reddit_sample.csv")
@@ -557,7 +561,7 @@ deont_sample <- mft_twitter_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 651) %>% 
+  slice_head(n = 650) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -568,7 +572,7 @@ conseq_sample <- mft_twitter_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 651) %>% 
+  slice_head(n = 650) %>% 
   mutate(sample = "outcome-based")
 
 #no target
@@ -581,9 +585,10 @@ notarget_sample <- mft_twitter_sentences_ddr %>%
 #combine
 mft_twitter_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(mft_twitter_sample, "corpus/mft_twitter_sample.rds")
 write_excel_csv(mft_twitter_sample, "corpus/mft_twitter_sample.csv")
@@ -647,7 +652,7 @@ cor(gerede_politics_sentences_ddr$sent_conseq_main, gerede_politics_sentences_dd
 cor(gerede_politics_sentences_ddr$sent_deont_pre, gerede_politics_sentences_ddr$sent_deont_main)
 
 #sample
-set.seed(178)
+set.seed(187)
 
 #deontological
 deont_sample <- gerede_politics_sentences_ddr %>%
@@ -677,9 +682,10 @@ notarget_sample <- gerede_politics_sentences_ddr %>%
 #combine
 gerede_politics_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(gerede_politics_sample, "corpus/gerede_politics_sample.rds")
 write_excel_csv(gerede_politics_sample, "corpus/gerede_politics_sample.csv")
@@ -753,7 +759,7 @@ deont_sample <- emfd_news_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 1 sentence, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 619) %>% 
+  slice_head(n = 620) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -764,7 +770,7 @@ conseq_sample <- emfd_news_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>% #only 3 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 619) %>% 
+  slice_head(n = 620) %>% 
   mutate(sample = "outcome-based")
 
 #no target
@@ -777,9 +783,10 @@ notarget_sample <- emfd_news_sentences_ddr %>%
 #combine
 emfd_news_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
   )%>%
-  distinct(sentence, .keep_all = TRUE) 
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(emfd_news_sample, "corpus/emfd_news_sample.rds")
 write_excel_csv(emfd_news_sample, "corpus/emfd_news_sample.csv")
@@ -842,6 +849,9 @@ ger_programs_sentences_ddr %>%
 cor(ger_programs_sentences_ddr$sent_conseq_main, ger_programs_sentences_ddr$sent_deont_main)
 cor(ger_programs_sentences_ddr$sent_deont_pre, ger_programs_sentences_ddr$sent_deont_main)
 
+ger_programs_sentences_ddr <- ger_programs_sentences
+rm(ger_programs_sentences)
+
 #sample
 set.seed(187)
 
@@ -853,7 +863,7 @@ deont_sample <- ger_programs_sentences_ddr %>%
   #filter(sent_deont_main > .71) %>% #only 400 sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_deont_main) %>%
-  slice_head(n = 610) %>% 
+  slice_head(n = 609) %>% 
   mutate(sample = "rule-based")
 
 #consequentialist
@@ -864,7 +874,7 @@ conseq_sample <- ger_programs_sentences_ddr %>%
   #filter(sent_conseq_main > .62) %>%  #2k sentences, threshold based on p = .8 from logistic regression model in pilot study
   #slice_sample(n = 600) %>%
   arrange(-sent_conseq_main) %>%
-  slice_head(n = 610) %>% 
+  slice_head(n = 609) %>% 
   mutate(sample = "outcome-based")
 
 #no target
@@ -877,10 +887,22 @@ notarget_sample <- ger_programs_sentences_ddr %>%
 #combine
 ger_programs_sample <- rbind(deont_sample, conseq_sample, notarget_sample) %>%
   mutate(
-    sentence = str_remove(sentence, "^- ") #avoid "-" at the beginning of sentences for csv
-  )%>%
-  distinct(sentence, .keep_all = TRUE) 
+    sentence = str_remove(sentence, "^-") #avoid "-" at the beginning of sentences for csv
+  ) %>%
+  distinct(sentence, .keep_all = TRUE) %>%
+  select(-text)
 
 saveRDS(ger_programs_sample, "corpus/ger_programs_sample.rds")
 write_excel_csv(ger_programs_sample, "corpus/ger_programs_sample.csv")
 
+#combine sample ----
+
+total_sample <- rbind(open_discourse_sample, us_congress_sample, 
+                      uk_parliament_sample, mft_twitter_sample, 
+                      mft_reddit_sample, gerede_politics_sample,
+                      emfd_news_sample, ger_programs_sample)
+
+#remove urls
+
+saveRDS(total_sample, "corpus/total_sample.rds")
+write_excel_csv(total_sample, "corpus/total_sample.csv")
