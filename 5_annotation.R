@@ -10,7 +10,7 @@ library(readxl)
 
 #1. Expert Annotations ----
 
-annotated <- read_excel("corpus/annotated.xlsx")
+annotated <- read_excel("corpus/annotatedc.xlsx")
 
 annotated %<>%
   mutate(
